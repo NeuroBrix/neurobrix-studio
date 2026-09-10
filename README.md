@@ -101,7 +101,7 @@ Apache 2.0, the same as the engine. See [LICENSE](LICENSE).
 
 <p align="center">
   <sub>
-    Developed by Hocine Benkelaya &middot;
+    Developed by <a href="https://www.linkedin.com/in/hocine-benkelaya/">Hocine Benkelaya</a> &middot;
     Managed by <a href="https://wizworks.io/">WizWorks OÜ</a>,
     a property of <a href="https://neuralnetworkholding.com/">NEURAL NETWORK HOLDING LTD</a>
   </sub>
