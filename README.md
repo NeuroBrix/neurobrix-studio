@@ -133,12 +133,16 @@ framework requirements.
 
 ### Coding agents
 
-[AGENTS.md](AGENTS.md) contains repository conventions, architecture constraints, and
-verification guidance. It also describes the workflow from the
-[Svelte agent guide](https://svelte.dev/docs/ai/instructions).
+[AGENTS.md](AGENTS.md) is the entry point for agents. Detailed coding rules live in
+[CONVENTIONS.md](CONVENTIONS.md), shared with human contributors.
+
+The optional [shadcn-svelte skill](.agents/skills/shadcn-svelte/SKILL.md) provides component
+and CLI workflows. Its source metadata is recorded in `skills-lock.json`.
+No additional skills are required to build or run the app.
 
 The repository includes a Codex-specific Svelte MCP configuration in `.codex/config.toml`.
 Zed and other editors need their own MCP setup; this file does not configure them.
+See the [Svelte agent guide](https://svelte.dev/docs/ai/instructions) for the tool workflow.
 
 ## Contributing
 

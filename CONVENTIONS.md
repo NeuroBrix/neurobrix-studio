@@ -9,6 +9,13 @@ classes, and component style are project defaults, not restrictions imposed by S
 
 ## Code organization
 
+Use the versions declared in `package.json`. SvelteKit 3 and adapter-static 4 prereleases
+are intentionally pinned; TypeScript stays on the latest version compatible with both
+SvelteKit and svelte-check. Check registry releases and peer requirements before upgrades.
+Keep SvelteKit options in the Vite plugin, not `svelte.config.js`, and keep desktop version
+polling disabled. TypeScript extends `$app/tsconfig` with explicit include/exclude lists.
+Preserve the matching Tauri development URL and Vite port.
+
 - Keep route orchestration in `src/routes`, transport and response validation in
   `src/lib/services`, and reactive resource classes in `src/lib/states`.
 - Use `.svelte.ts` for modules containing runes, such as `model-manager.svelte.ts`.
@@ -19,6 +26,9 @@ classes, and component style are project defaults, not restrictions imposed by S
   and validate it before treating it as a model, progress event, or response.
 - Keep components focused on rendering and interaction. Reuse shadcn-svelte components
   and existing theme tokens; keep native IPC and HTTP details in services.
+- Keep theme tokens in `src/routes/layout.css` and component aliases in `components.json`
+  aligned with `package.json`. Use the `cn` helper from `src/lib/utils.ts`. Add components
+  with the project-pinned `pnpm exec shadcn-svelte add <component>` command.
 
 ## Svelte 5 components and reactivity
 
@@ -214,7 +224,7 @@ on identity changes. Never maintain two independently refreshed copies of the sa
 ## Transport, mutations, and live updates
 
 - Obtain engine addresses and command capabilities from configuration or discovery.
-  Do not copy the example's localhost port, endpoint, or assumed `data.models` shape.
+  Do not hardcode a localhost port, endpoint, or unverified response shape.
 - Check HTTP status and validate payloads. A TypeScript generic on `invoke` or a type
   assertion on JSON does not validate the external response at runtime.
 - Keep mutation state separate from read state. Prevent duplicate submissions; do not
