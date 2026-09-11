@@ -55,14 +55,12 @@ versions and the pnpm pin are declared in [package.json](package.json).
 
 ### Current setup status
 
-The SvelteKit 3 migration is in progress. Configuration and imports have been updated,
-but the lockfile still references SvelteKit 2. Dependency installation and validation
-must be completed before the new setup can be considered working.
+The SvelteKit 3 dependencies and lockfile are installed and verified with `pnpm check`,
+`pnpm build`, and `pnpm install --frozen-lockfile`. Native launch, packaged routing,
+and installer builds have not been verified.
 
-The pnpm reinstall also encountered release-age restrictions on two existing locked
-packages. No exceptions are configured. The earlier successful frontend checks applied
-to the SvelteKit 2 scaffold, not the pending migration. Native launch and installer builds
-have not been verified.
+Lucide is pinned to 1.44.0 because 1.45.0 was inside pnpm's minimum release-age window
+when installed. Supply-chain policies remain enabled with no exceptions.
 
 ### Prerequisites
 
@@ -70,16 +68,16 @@ have not been verified.
 - Corepack 0.34.7 or newer, using a release compatible with your Node.js version.
 - Rust and the [Tauri prerequisites for your operating system](https://tauri.app/start/prerequisites/).
 
-The commands below run from the repository root. To finish dependency setup, enable
+The commands below run from the repository root. To set up dependencies, enable
 Corepack's pnpm shim and install:
 
 ```sh
 corepack enable pnpm
-pnpm install
+pnpm install --frozen-lockfile
 ```
 
-Corepack selects the pnpm version from `package.json`. Once the migration's lockfile has
-been updated and verified, use `pnpm install --frozen-lockfile` for repeatable installs.
+Corepack selects the pnpm version from `package.json`. The frozen lockfile keeps
+dependency installs repeatable.
 
 ### Commands
 

@@ -221,6 +221,43 @@ If loader data must seed a resource, pass it in without fetching again. Define o
 after that handoff, and explicitly reconcile later loader updates or recreate the resource
 on identity changes. Never maintain two independently refreshed copies of the same list.
 
+## Contract validation and type ownership
+
+Validate external data at the earliest boundary that understands its contract, before
+it enters application state. For the frontend, this is normally a typed service wrapping
+Tauri IPC, engine HTTP responses, streaming events, or persisted/imported data. Generic
+transport helpers may return `unknown`; the contract-aware service parses it and exposes
+a concrete return type. Do not wait until a loader or component to establish that type.
+
+- Use Valibot for runtime contract schemas. Keep schemas beside their owning service;
+  extract shared contracts into `src/lib/contracts` when multiple services need them.
+- Treat unvalidated payloads as `unknown`, including `invoke<unknown>()` results and
+  decoded JSON. Type annotations, generics, `any`, and `as Response` assertions do not
+  establish that external data satisfies a contract.
+- Infer validated types with `v.InferOutput<typeof Schema>` instead of maintaining a
+  matching interface by hand. Use `v.InferInput` only when the pre-parse input type is
+  needed, such as for a form with defaults or transformations. Arbitrary external input
+  remains `unknown` until parsed.
+- Declare service return types explicitly using the inferred contract type. Reuse those
+  types in loaders and resource managers, and let local expressions infer naturally.
+  Define separate domain or view types when their shape differs, with an explicit mapping
+  from the validated response.
+- Use `v.parse` with deliberate error handling, or branch on `v.safeParse` success and
+  consume its `output`. Report invalid responses as contract failures with a safe,
+  actionable message; never replace them with empty data or invented defaults.
+- Validate each external response or stream event once on entry to an owning layer.
+  Avoid reparsing unchanged, already validated data in every component. Validate again
+  when data crosses a new trust boundary or user edits require new checks.
+- Encode the documented contract, including required fields, valid ranges, event variants,
+  and an intentional policy for additional fields. Do not invent engine response shapes.
+  Schema validation complements engine version and capability checks; it cannot establish
+  semantic compatibility by itself.
+- Frontend validation does not replace Rust or engine validation of incoming commands.
+  Each receiving process must enforce its own input constraints before performing work.
+
+See Valibot's [parsing guide](https://valibot.dev/guides/parse-data/) and
+[type inference guide](https://valibot.dev/guides/infer-types/).
+
 ## Transport, mutations, and live updates
 
 - Obtain engine addresses and command capabilities from configuration or discovery.

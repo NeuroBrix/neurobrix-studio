@@ -13,6 +13,9 @@ The app is in development; do not describe the scaffold or planned features as c
 - Follow CONVENTIONS.md for Svelte 5 syntax, data ownership, component state, and cleanup.
   Initial route data belongs in universal loaders; component-owned queries use scoped
   resource classes in `.svelte.ts` files and typed services.
+- Validate external contracts with Valibot at the owning service boundary, starting from
+  `unknown`. Infer validated types from schemas and carry them through the application;
+  follow CONVENTIONS.md for type ownership, parsing failures, and trust boundaries.
 - Studio reaches the engine only through its public CLI and serving daemon. Never import
   engine internals, duplicate runtime logic, or fabricate models, results, or progress.
 - Read versions, paths, and capabilities from their source of truth. Check release and
