@@ -1,7 +1,7 @@
 # NeuroBrix Studio agent guide
 
-Read README.md and ROADMAP.md before changing the app. The project is in development;
-the current screen is a scaffold, not a working inference product.
+Read README.md, ROADMAP.md, and [CONVENTIONS.md](CONVENTIONS.md) before changing the app.
+The project is in development; the current screen is a scaffold, not a working inference product.
 
 ## Project conventions
 
@@ -27,6 +27,38 @@ the current screen is a scaffold, not a working inference product.
 - Theme tokens and Tailwind imports belong in src/routes/layout.css; Tailwind runs
   through the Vite plugin. Add components with pnpm exec shadcn-svelte add <component>.
 - Preserve the Tauri development URL and matching Vite port when editing build settings.
+
+## Svelte 5 and SPA checklist
+
+- Follow [CONVENTIONS.md](CONVENTIONS.md) for the full rules and framework references.
+- Use typed $props, callback props, modern event attributes, and snippets in new code.
+  Keep props read-only; use $bindable only for intentional two-way component APIs.
+- Derive values from changing inputs with $derived or $derived.by. Avoid stale copies
+  and effect-driven state mirroring. Key entity lists with stable domain IDs.
+- Share scoped managers with typed createContext. Prefer attachments for new DOM
+  integrations and Svelte window/document elements for global listeners; clean up resources.
+- Preserve the client-rendered Tauri SPA and index.html fallback. Do not add server
+  actions, server-dependent remote functions, or prerendering of native-dependent routes.
+- Account for route-instance reuse and speculative hover loads. onMount is not a
+  navigation hook; reset resources by identity and limit expensive link preloading.
+- Handle asynchronous requests and event-handler errors explicitly; svelte:boundary
+  does not catch them. Keep experimental async rendering disabled by default.
+- Validate relevant nested-route reloads, back/forward navigation, and packaged routing.
+  Browser success is not proof of packaged fallback behavior.
+
+## Data loading conventions
+
+- Follow [CONVENTIONS.md](CONVENTIONS.md) for data ownership, resource classes, and cleanup.
+- Use universal +page.ts loaders for initial route data and +layout.ts only for shared
+  route data. Keep loaders read-only and return data rather than mutating managers.
+- Use scoped resource classes in .svelte.ts files for component-owned queries. Keep
+  transport and runtime validation in typed services; do not fetch directly throughout UI code.
+- Do not duplicate loader requests on mount. Refresh through the data's owner: targeted
+  loader invalidation or an explicit resource method.
+- Guard against stale responses and dispose requests, listeners, and timers. Separate
+  initial loading, refresh, empty, unavailable, and failure states. Never hide errors as [].
+- Use dedicated operation managers for streaming and mutations. Canceling a UI request
+  does not cancel native work unless the engine confirms it.
 
 ## Svelte documentation and tools
 

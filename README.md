@@ -122,6 +122,15 @@ Component aliases are configured in [components.json](components.json). Use expl
 extensions when importing through `#lib`, for example `#lib/components/ui/button/index.js`.
 Component generation with the new SvelteKit 3 aliases still needs verification.
 
+### Development conventions
+
+[CONVENTIONS.md](CONVENTIONS.md) defines the shared coding conventions for developers and
+agents. Use page loaders for initial route data and scoped Svelte 5 resource classes for
+component-owned requests. The guide covers Svelte 5 component syntax and reactive
+ownership, SPA navigation and preloading, typed services, error handling, and request
+cleanup. It includes a resource-class example and separates project defaults from
+framework requirements.
+
 ### Coding agents
 
 [AGENTS.md](AGENTS.md) contains repository conventions, architecture constraints, and
