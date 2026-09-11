@@ -90,8 +90,70 @@ These come from the engine project and apply here without change.
 
 ## Getting started
 
-Setup instructions arrive with the first stage. Until then, read the
-[roadmap](ROADMAP.md).
+Install Node.js 22.12+ (or a newer supported LTS), Corepack, Rust, and the
+[Tauri prerequisites for your operating system](https://tauri.app/start/prerequisites/).
+Run these commands from the repository root:
+
+```sh
+corepack enable pnpm
+pnpm install --frozen-lockfile
+pnpm tauri dev
+```
+
+Corepack selects the pnpm version pinned in `package.json` (currently 12.4.1).
+Use Corepack 0.34.7 or newer; choose a Corepack release compatible with your Node.js version.
+
+`pnpm tauri dev` starts the Vite development server on port 1420 and opens the native
+application. `pnpm dev` starts only the browser frontend; native commands require the
+Tauri application.
+
+```sh
+pnpm check        # Svelte and TypeScript checks
+pnpm build        # Static frontend output in build/
+pnpm tauri build  # Build the native application and platform bundles
+```
+
+The frontend follows the [Tauri SvelteKit guide](https://tauri.app/start/frontend/sveltekit/):
+`@sveltejs/adapter-static` emits an `index.html` fallback, the root layout disables SSR,
+and Tauri loads `../build` relative to `src-tauri/tauri.conf.json`. This is a client-side
+SPA; server routes and server-only load functions are not supported by this setup.
+
+The current UI is the generated starter screen. Engine integration and the rest of the
+foundation remain planned in the [roadmap](ROADMAP.md).
+
+### UI components and styling
+
+Tailwind CSS 4 runs through the Vite plugin. Global styles and shadcn theme tokens live in
+`src/routes/layout.css`, imported by the root Svelte layout. The shadcn-svelte configuration
+in `components.json` uses the Vega preset, neutral colors, Lucide icons, and bundled Inter
+fonts. Dark theme tokens are available through the `dark` class on the root HTML element.
+
+Add components from the repository root:
+
+```sh
+pnpm exec shadcn-svelte add input
+```
+
+The Button component is already available:
+
+```svelte
+<script lang="ts">
+  import { Button } from "$lib/components/ui/button/index.js";
+</script>
+
+<Button>Continue</Button>
+```
+
+### Agent setup
+
+Repository guidance lives in [AGENTS.md](AGENTS.md). The project-local
+`.codex/config.toml` connects Codex to the official Svelte MCP server for documentation
+and Svelte code analysis, following the [Svelte agent guide](https://svelte.dev/docs/ai/instructions).
+It does not require an application dependency or API key.
+
+Restart your Codex client after changing MCP configuration and open this repository as
+a trusted project. Check `/mcp` for the `svelte` server. Project configuration is described
+in the [Codex MCP documentation](https://developers.openai.com/codex/mcp).
 
 ## Licence
 
