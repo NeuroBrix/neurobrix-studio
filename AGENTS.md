@@ -7,7 +7,18 @@ the current screen is a scaffold, not a working inference product.
 
 - Use Corepack-managed pnpm from the repository root, following the packageManager
   pin in package.json. Preserve pnpm-lock.yaml.
-- The stack is Svelte 5, SvelteKit 2, TypeScript, Tauri 2, Tailwind CSS 4, and shadcn-svelte.
+- The stack is Svelte 5, SvelteKit 3 (currently prerelease), TypeScript 6, Tauri 2,
+  Tailwind CSS 4, and shadcn-svelte. Read package.json for exact versions.
+- Prefer the latest mutually compatible tooling. Check registry releases and peer
+  requirements before upgrading; do not force incompatible major versions. SvelteKit 3
+  and adapter-static 4 prereleases are intentional and pinned exactly. TypeScript 7 is
+  not yet supported by the current SvelteKit and svelte-check peer requirements.
+- Configure SvelteKit and its static adapter in the sveltekit() Vite plugin in
+  vite.config.js. Do not recreate svelte.config.js. Keep version polling disabled for
+  the bundled desktop frontend.
+- Use #lib subpath imports from package.json with explicit file extensions, and keep
+  components.json aliases aligned. The root tsconfig.json extends $app/tsconfig and
+  declares its own include/exclude lists. Do not restore the legacy $lib alias.
 - Keep the frontend a static SPA: SSR is disabled in src/routes/+layout.ts,
   the adapter emits an index.html fallback, and Tauri loads ../build.
 - Do not introduce SvelteKit server endpoints or server-only load functions.
@@ -21,6 +32,8 @@ the current screen is a scaffold, not a working inference product.
 
 Adapted from https://svelte.dev/docs/ai/instructions.
 The project configures Svelte MCP in .codex/config.toml.
+For v3-specific behavior, consult https://next.svelte.dev/docs/kit/migrating-to-sveltekit-3
+and the v3 documentation; stable documentation may still describe SvelteKit 2.
 
 1. Begin Svelte or SvelteKit work with list-sections. Match its use_cases to the task,
    then fetch every relevant section with get-documentation before implementing.

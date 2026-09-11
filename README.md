@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>The desktop application for the NeuroBrix inference engine.</strong><br/>
-  Download one file. Install it. Run any model.
+  A desktop interface for running AI models locally.
 </p>
 
 <p align="center">
@@ -18,146 +18,134 @@
 
 ---
 
-> **Status: in development. Not alpha, not released.**
-> There are no tags, no downloads and no installers yet. The first version, `0.0.1`, is
-> published only when the application is judged functional — not before. Nothing in this
-> repository should be presented as available software.
+> **Early development — no public release or installer yet.**
+> The repository contains a starter interface and a Tauri shell. Engine integration,
+> model management, and inference are planned in the [roadmap](ROADMAP.md).
 
-## What this is
+## About
 
-NeuroBrix Studio is a desktop application for **macOS, Windows and Linux**. It exists for one
-kind of person: someone who is not a developer, who knows how to download an application and
-install it, and who wants to run AI models without ever opening a terminal.
+NeuroBrix Studio aims to make the [NeuroBrix inference engine](https://github.com/NeuroBrix/neurobrix)
+accessible through a desktop app for macOS, Windows, and Linux.
 
-That goal sets the hardest requirement in this repository, and it is a packaging requirement
-rather than a user-interface one: **one downloaded file must be enough.** The installer brings
-its own Python runtime, installs the matching engine and its dependencies, and prepares the
-machine — so that the user never installs anything by hand. See
-[stage 7 of the roadmap](ROADMAP.md#stage-7--the-self-contained-installer).
+The goal is a single installer that includes the Python runtime, engine, and dependencies,
+so users can run supported models without configuring a development environment.
+That installer is planned work; see [stage 7 of the roadmap](ROADMAP.md#stage-7--the-self-contained-installer).
 
-## What this is not
+## Architecture
 
-Studio is **not** a second way to run models. It is a client of the engine.
+Studio provides the desktop interface. The engine handles model execution. Integration
+will use the engine's public `neurobrix` CLI and serving daemon; Studio must not import
+engine internals or duplicate its runtime logic.
 
-- The engine is [`NeuroBrix/neurobrix`](https://github.com/NeuroBrix/neurobrix): a Python
-  runtime, published on PyPI, that executes any model on any hardware.
-- Studio talks to it **only** through the engine's public surface — the `neurobrix` command
-  line and the serving daemon.
-- Studio never imports the Python package, never reaches into the runtime, and never
-  reimplements any part of it.
+Studio and the engine have independent release versions. Each Studio release will document
+its tested engine compatibility range and which platform builds were verified.
 
-This is an architectural rule, not a preference. A second execution path into the runtime
-would mean two behaviours to keep correct, two places for a defect to hide, and results that
-differ depending on which door the user came through. A test enforces the rule.
+The application uses:
 
-## Relationship to the engine
+- **Tauri 2 and Rust** for the native shell.
+- **Svelte 5 and SvelteKit 3** for the interface, configured as a static single-page app.
+- **TypeScript 6 and Vite 8** for development and builds.
+- **Tailwind CSS 4 and shadcn-svelte** for styling and UI components.
+- **Corepack and pnpm** for package-manager selection and dependency installation.
 
-The dependency runs **one way only**: Studio depends on the engine, the engine never depends
-on Studio.
+SvelteKit 3 and its static adapter currently use pinned prereleases. Exact dependency
+versions and the pnpm pin are declared in [package.json](package.json).
 
-Each Studio release declares the range of engine versions it has been tested against — a
-range and not a pinned version, so that an engine patch release does not require a Studio
-release. Today's range is `>=0.5.3,<0.6`.
+## Development
 
-Studio and the engine version independently. Studio starting at `0.0.1` while the engine is
-at `0.5.3` is normal and expected; the two numbers are not meant to converge.
+### Current setup status
 
-## Platforms
+The SvelteKit 3 migration is in progress. Configuration and imports have been updated,
+but the lockfile still references SvelteKit 2. Dependency installation and validation
+must be completed before the new setup can be considered working.
 
-Every release produces **three artefacts carrying the same version number**: macOS, Windows
-and Linux. A platform whose artefact could not be produced or verified is stated as such
-rather than quietly omitted.
+The pnpm reinstall also encountered release-age restrictions on two existing locked
+packages. No exceptions are configured. The earlier successful frontend checks applied
+to the SvelteKit 2 scaffold, not the pending migration. Native launch and installer builds
+have not been verified.
 
-## Stack
+### Prerequisites
 
-Tauri 2 (Rust) for the native shell, SvelteKit as a static single-page application,
-TypeScript, Tailwind CSS. React and Electron were considered and are viable; this application
-uses SvelteKit and Tauri.
+- Node.js satisfying the `engines.node` requirement in [package.json](package.json).
+- Corepack 0.34.7 or newer, using a release compatible with your Node.js version.
+- Rust and the [Tauri prerequisites for your operating system](https://tauri.app/start/prerequisites/).
 
-## Working rules
-
-These come from the engine project and apply here without change.
-
-- **No fabricated results.** No placeholder models, no simulated inference, no invented
-  progress. An action that cannot be performed is shown as unavailable, with the reason.
-- **Failures are explicit.** A missing, failed or incompatible engine integration is reported
-  to the user with what happened and what to do — never swallowed, never retried in silence.
-- **What was not verified is written down.** A check that did not run is recorded as not run.
-  A behaviour observed on one platform is not claimed for the other two.
-- **No hardcoding.** Versions, paths, ranges and capabilities are read from configuration or
-  from the engine itself, never written into the code.
-- **Every increment is an issue, a branch, tests and a pull request**, in that order.
-
-## Getting started
-
-Install Node.js 22.12+ (or a newer supported LTS), Corepack, Rust, and the
-[Tauri prerequisites for your operating system](https://tauri.app/start/prerequisites/).
-Run these commands from the repository root:
+The commands below run from the repository root. To finish dependency setup, enable
+Corepack's pnpm shim and install:
 
 ```sh
 corepack enable pnpm
-pnpm install --frozen-lockfile
-pnpm tauri dev
+pnpm install
 ```
 
-Corepack selects the pnpm version pinned in `package.json` (currently 12.4.1).
-Use Corepack 0.34.7 or newer; choose a Corepack release compatible with your Node.js version.
+Corepack selects the pnpm version from `package.json`. Once the migration's lockfile has
+been updated and verified, use `pnpm install --frozen-lockfile` for repeatable installs.
 
-`pnpm tauri dev` starts the Vite development server on port 1420 and opens the native
-application. `pnpm dev` starts only the browser frontend; native commands require the
-Tauri application.
+### Commands
 
-```sh
-pnpm check        # Svelte and TypeScript checks
-pnpm build        # Static frontend output in build/
-pnpm tauri build  # Build the native application and platform bundles
-```
+| Command | Purpose |
+| --- | --- |
+| `pnpm tauri dev` | Start Vite and open the desktop application. |
+| `pnpm dev` | Start the browser frontend at `http://localhost:1420`. |
+| `pnpm check` | Run Svelte and TypeScript checks. |
+| `pnpm build` | Generate the static frontend in `build/`. |
+| `pnpm tauri build` | Build the native app and platform bundles. |
 
-The frontend follows the [Tauri SvelteKit guide](https://tauri.app/start/frontend/sveltekit/):
-`@sveltejs/adapter-static` emits an `index.html` fallback, the root layout disables SSR,
-and Tauri loads `../build` relative to `src-tauri/tauri.conf.json`. This is a client-side
-SPA; server routes and server-only load functions are not supported by this setup.
+Native commands, including the starter screen's greeting, require the Tauri application.
+Opening the frontend in a browser does not provide native IPC.
 
-The current UI is the generated starter screen. Engine integration and the rest of the
-foundation remain planned in the [roadmap](ROADMAP.md).
+### Frontend configuration
 
-### UI components and styling
+SvelteKit configuration lives in the `sveltekit()` plugin in [vite.config.js](vite.config.js).
+The static adapter generates an `index.html` fallback, the root layout disables SSR, and
+Tauri loads `../build` relative to its configuration file. This setup has no SvelteKit
+server runtime, so server endpoints and server-only load functions cannot be used.
 
-Tailwind CSS 4 runs through the Vite plugin. Global styles and shadcn theme tokens live in
-`src/routes/layout.css`, imported by the root Svelte layout. The shadcn-svelte configuration
-in `components.json` uses the Vega preset, neutral colors, Lucide icons, and bundled Inter
-fonts. Dark theme tokens are available through the `dark` class on the root HTML element.
+Library imports use `#lib/*`, declared in `package.json`. TypeScript extends `$app/tsconfig`.
+These conventions follow the [SvelteKit 3 migration guide](https://next.svelte.dev/docs/kit/migrating-to-sveltekit-3).
+TypeScript is kept on version 6 to satisfy the selected SvelteKit and svelte-check peer requirements.
 
-Add components from the repository root:
+### Components and styling
+
+Global styles and theme tokens live in [src/routes/layout.css](src/routes/layout.css).
+The shadcn-svelte setup uses the Vega preset, neutral colors, Lucide icons, and bundled
+Inter fonts. Add `dark` to the root HTML element to select the dark theme tokens.
+
+The Button component is available under `src/lib/components/ui/button`. After dependency
+setup is complete, add further components with the shadcn-svelte CLI:
 
 ```sh
 pnpm exec shadcn-svelte add input
 ```
 
-The Button component is already available:
+Component aliases are configured in [components.json](components.json). Use explicit file
+extensions when importing through `#lib`, for example `#lib/components/ui/button/index.js`.
+Component generation with the new SvelteKit 3 aliases still needs verification.
 
-```svelte
-<script lang="ts">
-  import { Button } from "$lib/components/ui/button/index.js";
-</script>
+### Coding agents
 
-<Button>Continue</Button>
-```
+[AGENTS.md](AGENTS.md) contains repository conventions, architecture constraints, and
+verification guidance. It also describes the workflow from the
+[Svelte agent guide](https://svelte.dev/docs/ai/instructions).
 
-### Agent setup
+The repository includes a Codex-specific Svelte MCP configuration in `.codex/config.toml`.
+Zed and other editors need their own MCP setup; this file does not configure them.
 
-Repository guidance lives in [AGENTS.md](AGENTS.md). The project-local
-`.codex/config.toml` connects Codex to the official Svelte MCP server for documentation
-and Svelte code analysis, following the [Svelte agent guide](https://svelte.dev/docs/ai/instructions).
-It does not require an application dependency or API key.
+## Contributing
 
-Restart your Codex client after changing MCP configuration and open this repository as
-a trusted project. Check `/mcp` for the `svelte` server. Project configuration is described
-in the [Codex MCP documentation](https://developers.openai.com/codex/mcp).
+Follow the [roadmap](ROADMAP.md) and keep changes focused. The project workflow is an
+issue, a branch, relevant tests, and a pull request. Maintainers review, merge, and publish.
+
+- Show unavailable features and failures clearly. Do not simulate inference, models, or progress.
+- Read versions, paths, and capabilities from their source of truth instead of duplicating them.
+- Record what was tested and what remains unverified. Browser checks do not establish
+  native behavior, GPU compatibility, or support for another operating system.
 
 ## Licence
 
-Apache 2.0, the same as the engine. See [LICENSE](LICENSE).
+The repository's [LICENSE](LICENSE) contains the Apache License 2.0.
+The scaffold's `package.json` still declares MIT; that metadata needs to be reconciled
+before distribution.
 
 ---
 
