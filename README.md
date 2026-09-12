@@ -129,7 +129,23 @@ unused Edge/Firefox driver download scripts. A scoped WDIO globals override alig
 the Tauri service with the runner's assertion-library peer requirement.
 
 See [testing conventions](CONVENTIONS.md#test-layers) for placement, ownership, and
-verification rules. CI workflows and coverage thresholds are not configured yet.
+verification rules. Coverage thresholds are not configured.
+
+### Continuous integration
+
+The [CI workflow](.github/workflows/ci.yml) runs on pull requests, pushes to `main`,
+and manual dispatch. Its **Frontend checks** job uses Ubuntu, Node.js 24, and
+Corepack-managed pnpm with a cached package store and frozen-lockfile installation.
+It runs `pnpm lint`, `pnpm check`, `pnpm test`, and `pnpm build`, then checks that
+`build/index.html` exists. Chromium and its Linux dependencies are installed with
+`pnpm exec playwright install --with-deps chromium` before testing.
+
+Runs have a ten-minute timeout; newer commits cancel superseded runs. The same pnpm
+commands can be run locally. This workflow verifies the static frontend and browser
+components; native builds, desktop IPC, packaged routing, installers, and GPU behavior
+require separate checks. No publishing or branch-protection rules are configured by it.
+
+### Local verification
 
 Verified locally on macOS arm64: five Vitest tests, the native greeting/reload test,
 frontend checks/build, and normal native compilation without the `e2e` feature.

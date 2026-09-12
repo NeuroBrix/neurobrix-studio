@@ -336,12 +336,22 @@ distribution builds. An instrumented native test build does not verify
 signed installers; check the normal build and its dependency graph separately.
 
 Capture test failures and reports under ignored test-output directories. Keep fixtures
-and configurations versioned. Add CI and coverage reporting only when needed; neither
-is configured by this initial setup. Refer to the
+and configurations versioned. Coverage thresholds are not configured. Refer to the
 [Vitest component guide](https://vitest.dev/guide/browser/component-testing) and
 [Tauri WebDriver guide](https://tauri.app/develop/tests/webdriver/) for upstream guidance.
 
 ### Checks and acceptance
+
+The [CI workflow](.github/workflows/ci.yml) runs `pnpm lint`, `pnpm check`, `pnpm test`
+(unit and Chromium component projects), and `pnpm build` on Ubuntu for every pull
+request and push to `main`; manual runs are also available. It uses Corepack with the
+repository's pnpm pin, a frozen lockfile, and the existing supply-chain policies.
+Chromium is installed with `pnpm exec playwright install --with-deps chromium`.
+CI also verifies the static `build/index.html` output. Keep these checks read-only
+with respect to source files. A passing frontend job does not verify native compilation,
+desktop IPC, packaged routing, installers, or GPU behavior; run relevant native checks
+separately and report their results. Do not treat the ten-minute CI timeout as a
+measured runtime guarantee.
 
 Use the project-pinned Biome configuration for formatting, linting, and import
 organization. The baseline is two-space indentation, a 100-column line width, and
