@@ -24,6 +24,19 @@ Studio reaches the engine **only** through its public surface: the `neurobrix` c
 and the serving daemon. It never imports the Python package and never opens a second
 execution path into the runtime. Every stage below respects this, and a test enforces it.
 
+## How the version number moves
+
+The counter starts at `0.0.1` and stays in the `0.0.x` range for the whole alpha.
+Every increment during construction raises the patch digit and nothing else.
+
+`0.1.0` is reached at the first beta, and not before. It is a statement that the
+application is fit for someone other than its author to run, so it is not reached by
+accident and not carried in a branch ahead of time.
+
+Until then the three declared versions — `package.json`, `tauri.conf.json` and
+`Cargo.toml` — say `0.0.x` and say the same thing as each other. A pull request that
+raises the minor digit is refused unless raising it is the point of the pull request.
+
 ## Where things live on disk
 
 No path is ever written into the code. Every location below is resolved at runtime,
