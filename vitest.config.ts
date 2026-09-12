@@ -7,6 +7,15 @@ export default defineConfig({
   test: {
     projects: [
       {
+        test: {
+          name: "navigation",
+          environment: "node",
+          include: ["test/navigation/**/*.test.ts"],
+          hookTimeout: 30000,
+          testTimeout: 30000,
+        },
+      },
+      {
         resolve: { alias: { "#lib": fileURLToPath(new URL("./src/lib", import.meta.url)) } },
         test: {
           name: "unit",

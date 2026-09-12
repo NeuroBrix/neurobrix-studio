@@ -307,11 +307,17 @@ Desktop tests live in `test/e2e`, with separate TypeScript configuration and exp
 Mocha/WDIO imports. Do not mix runner globals. Use Rust unit tests near their modules
 and integration tests under `src-tauri/tests` when appropriate.
 
-Run `pnpm test` for both Vitest projects, `pnpm test:watch` during development,
+Run `pnpm test` for all Vitest projects, `pnpm test:watch` during development,
 `pnpm test:unit` or `pnpm test:component` to target a layer, `pnpm test:rust` for Cargo,
 and `pnpm test:e2e` for the built desktop app. Install Chromium separately with
-`pnpm exec playwright install chromium`. Playwright supplies Vitest's browser;
-there is no separate Playwright E2E suite or simulated DOM environment.
+`pnpm exec playwright install chromium`. Playwright supplies Vitest's component browser
+and the `navigation` project, which checks keyboard-only routing against a local Vite
+server with real browser key presses. There is no separate Playwright test runner or
+simulated DOM environment. The pinned embedded desktop driver dispatches synthetic
+keyboard events, which do not perform the browser's default Tab traversal. Keyboard
+evidence from the navigation project is browser evidence; check the native Mac keyboard
+path separately. Desktop tests still verify built assets, real native titles, routing,
+reloads and window sizing.
 
 Test behavior at the lowest useful layer. Prefer accessible selectors, awaited
 assertions, controlled promises, and isolated fixtures. Use stable IDs only when no
@@ -344,7 +350,7 @@ and configurations versioned. Coverage thresholds are not configured. Refer to t
 ### Checks and acceptance
 
 The [CI workflow](.github/workflows/ci.yml) runs `pnpm lint`, `pnpm check`, `pnpm test`
-(unit and Chromium component projects), and `pnpm build` on Ubuntu for every pull
+(unit, Chromium component and browser navigation projects), and `pnpm build` on Ubuntu for every pull
 request and push to `main`; manual runs are also available. It uses Corepack with the
 repository's pnpm pin, a frozen lockfile, and the existing supply-chain policies.
 Chromium is installed with `pnpm exec playwright install --with-deps chromium`.
