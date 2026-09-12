@@ -33,7 +33,9 @@ examples to this project's `#lib` aliases and explicit extensions. Use the proje
 Project conventions take precedence over generic skill examples. Do not copy globally
 available or unrelated skills into the repository as part of routine work.
 
-The Svelte MCP configuration is in `.codex/config.toml`. For Svelte work:
+Configure Svelte MCP locally in your agent client using `https://mcp.svelte.dev/mcp`.
+Codex users can use `.codex/config.toml`; `.codex/` is ignored and not shared through Git.
+For Svelte work:
 
 1. Use `list-sections`, then `get-documentation` for the relevant sections.
 2. Run `svelte-autofixer` on Svelte code you create or edit; address its findings and

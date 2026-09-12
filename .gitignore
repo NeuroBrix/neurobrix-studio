@@ -37,3 +37,6 @@ Thumbs.db
 .vscode/
 .idea/
 *~
+
+# Local agent configuration
+/.codex/

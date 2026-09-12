@@ -208,8 +208,9 @@ The optional [shadcn-svelte skill](.agents/skills/shadcn-svelte/SKILL.md) provid
 and CLI workflows. Its source metadata is recorded in `skills-lock.json`.
 No additional skills are required to build or run the app.
 
-The repository includes a Codex-specific Svelte MCP configuration in `.codex/config.toml`.
-Zed and other editors need their own MCP setup; this file does not configure them.
+Configure Svelte MCP in your agent client using `https://mcp.svelte.dev/mcp`.
+Codex users can keep this in `.codex/config.toml`; `.codex/` is ignored and not
+shared through Git. Zed and other editors need their own MCP setup.
 See the [Svelte agent guide](https://svelte.dev/docs/ai/instructions) for the tool workflow.
 
 ## Contributing
