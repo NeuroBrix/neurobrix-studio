@@ -57,8 +57,8 @@ versions and the pnpm pin are declared in [package.json](package.json).
 
 The SvelteKit 3 dependencies and lockfile are installed and verified with `pnpm check`,
 `pnpm build`, and `pnpm install --frozen-lockfile`. The test setup has also passed
-five Vitest tests and the built desktop greeting/reload smoke test on macOS arm64.
-Windows/Linux execution, nested packaged routing, and installers remain unverified.
+five Vitest tests on macOS arm64. The desktop smoke test covers navigation and reloads;
+Windows/Linux execution and installers remain unverified.
 
 Lucide is pinned to 1.44.0 because 1.45.0 was inside pnpm's minimum release-age window
 when installed. Supply-chain policies remain enabled with no exceptions.
@@ -100,7 +100,7 @@ dependency installs repeatable.
 | `pnpm build` | Generate the static frontend in `build/`. |
 | `pnpm tauri build` | Build the native app and platform bundles. |
 
-Native commands, including the starter screen's greeting, require the Tauri application.
+Native commands require the Tauri application.
 Opening the frontend in a browser does not provide native IPC.
 
 ### Testing setup
@@ -117,8 +117,8 @@ WebdriverIO tests the built desktop app using the embedded Tauri driver; no exte
 and the platform's Tauri prerequisites, including a usable desktop session.
 
 `pnpm test:e2e` builds frontend assets and a native binary with the explicit `e2e`
-feature in `src-tauri/target/e2e`. It verifies the greeting through real IPC and repeats
-after a webview reload. A test-only Tauri config enables the global API and WDIO
+feature in `src-tauri/target/e2e`. It verifies Models and Settings navigation, nested-route reloads,
+and back/forward navigation in the built webview. It does not test application IPC. A test-only Tauri config enables the global API and WDIO
 permissions; the `e2e` Vite mode includes the frontend automation bridge. Normal builds
 exclude that bridge, both automation plugins, and this config overlay. Do not distribute
 the instrumented test binary. Protocol parsing, persistence, and engine acceptance
@@ -147,7 +147,7 @@ require separate checks. No publishing or branch-protection rules are configured
 
 ### Local verification
 
-Verified locally on macOS arm64: five Vitest tests, the native greeting/reload test,
+Verified locally on macOS arm64 before the landing-page update: five Vitest tests, the native greeting/reload test,
 frontend checks/build, and normal native compilation without the `e2e` feature.
 `cargo test` succeeds with zero Rust test cases at this scaffold stage. Vitest currently
 logs a Vite hook compatibility warning, and WDIO logs title-matching warnings because

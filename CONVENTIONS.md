@@ -324,7 +324,8 @@ Keep fixture data and temporary databases separate from real models, engine cach
 credentials, and conversations. Mocks are allowed in tests, never as fabricated product
 behavior. Component tests with mocked services, desktop tests with a controlled engine
 fixture, and real-engine/GPU acceptance tests provide different evidence; label them.
-The initial desktop smoke test uses real Rust IPC without engine integration or mocks.
+The desktop smoke test covers navigation and reloads in the built webview. It does not
+verify application IPC or engine integration.
 
 The embedded driver and backend window-query plugin are optional Rust dependencies
 enabled only by the `e2e` Cargo feature. The desktop test command builds into a separate

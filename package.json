@@ -29,7 +29,7 @@
     "test:e2e": "pnpm tauri build --debug --no-bundle --features e2e --config src-tauri/tauri.e2e.conf.json -- --target-dir target/e2e && wdio run test/e2e/wdio.conf.ts",
     "tauri": "tauri"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-opener": "^2.5.5",
