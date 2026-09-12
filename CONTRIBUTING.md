@@ -65,6 +65,11 @@ half-done loses the remaining work.
 - **No hardcoding.** Versions, paths, ranges and capabilities are read from
   configuration or from the engine itself, never written into the code.
 - **Nothing deferred.** A problem found is a problem fixed, not a TODO.
+- **No paths in the code.** Locations are resolved at runtime from the platform API,
+  never written literally and never assembled by hand from a home directory. Studio's
+  data comes from Tauri's path API; anything belonging to the engine is asked of the
+  engine. See *Where things live on disk* in [ROADMAP.md](ROADMAP.md). A hardcoded
+  path is a blocking review comment, including in tests and in scripts.
 
 ## Licence and third-party content
 

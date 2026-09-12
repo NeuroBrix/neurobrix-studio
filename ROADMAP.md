@@ -24,6 +24,32 @@ Studio reaches the engine **only** through its public surface: the `neurobrix` c
 and the serving daemon. It never imports the Python package and never opens a second
 execution path into the runtime. Every stage below respects this, and a test enforces it.
 
+## Where things live on disk
+
+No path is ever written into the code. Every location below is resolved at runtime,
+on the machine it runs on, from the platform's own API. A literal path in a source
+file is a defect, and so is a path assembled by hand from a home directory.
+
+**The application** is installed where the operating system installs applications:
+`/Applications` on macOS, `Program Files` on Windows, the distribution's own location
+on Linux. The bundler decides this; Studio does not.
+
+**Studio's own data** — conversation history, settings, logs, caches — lives in the
+per-user location each platform defines for application data, under the application
+identifier `es.neurobrix.studio`. Studio obtains these paths from Tauri's path API
+(`appDataDir`, `appConfigDir`, `appLogDir`, `appCacheDir`) and never constructs them.
+In practice this resolves to `~/Library/Application Support/…` on macOS, `%APPDATA%\…`
+on Windows and `$XDG_DATA_HOME/…` on Linux, but Studio does not know or care which.
+
+**Models, engine artefacts and engine caches belong to the engine.** They live where
+the engine puts them, under the engine's own root, and Studio never chooses a location
+for them, never writes into that tree directly, and never keeps a second copy. When
+Studio needs to know where something is, it asks the engine. Two components deciding
+where models live means models in two places and a user who cannot find either.
+
+**The embedded runtime** shipped by the installer at stage 7 is installed inside the
+application's own data location, isolated from any Python already on the machine.
+
 ---
 
 ## Stage 0 — Foundation
