@@ -10,7 +10,6 @@
     "includes": [
       "**",
       "!!.agents",
-      "!!.codex",
       "!!static",
       "!!src-tauri/target",
       "!!src-tauri/gen",
