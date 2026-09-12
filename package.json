@@ -1,7 +1,7 @@
 {
   "name": "neurobrix-studio",
-  "version": "0.1.0",
-  "description": "",
+  "version": "0.0.1",
+  "description": "Desktop interface for the NeuroBrix inference engine",
   "type": "module",
   "packageManager": "pnpm@12.4.1",
   "engines": {
