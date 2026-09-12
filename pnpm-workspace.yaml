@@ -1,0 +1,7 @@
+allowBuilds:
+  esbuild: true
+  edgedriver: false
+  geckodriver: false
+overrides:
+  # Match the service's globals with the runner's expect-webdriverio 6 peer.
+  "@wdio/tauri-service>@wdio/globals": 9.31.3

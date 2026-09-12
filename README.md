@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>The desktop application for the NeuroBrix inference engine.</strong><br/>
-  Download one file. Install it. Run any model.
+  A desktop interface for running AI models locally.
 </p>
 
 <p align="center">
@@ -18,10 +18,9 @@
 
 ---
 
-> **Status: in development. Not alpha, not released.**
-> There are no tags, no downloads and no installers yet. The first version, `0.0.1`, is
-> published only when the application is judged functional — not before. Nothing in this
-> repository should be presented as available software.
+> **Early development — no public release or installer yet.**
+> The repository contains a starter interface and a Tauri shell. Engine integration,
+> model management, and inference are planned in the [roadmap](ROADMAP.md).
 
 ## What this is
 
@@ -71,8 +70,19 @@ rather than quietly omitted.
 ## Stack
 
 Tauri 2 (Rust) for the native shell, SvelteKit as a static single-page application,
-TypeScript, Tailwind CSS. React and Electron were considered and are viable; this application
-uses SvelteKit and Tauri.
+TypeScript, and Tailwind CSS. React and Electron were considered and are viable; this
+application uses SvelteKit and Tauri.
+
+The application currently uses:
+
+- **Tauri 2 and Rust** for the native shell.
+- **Svelte 5 and SvelteKit 3** for the interface, configured as a static single-page app.
+- **TypeScript 6 and Vite 8** for development and builds.
+- **Tailwind CSS 4 and shadcn-svelte** for styling and UI components.
+- **Corepack and pnpm** for package-manager selection and dependency installation.
+
+SvelteKit 3 and its static adapter currently use pinned prereleases. Exact dependency
+versions and the pnpm pin are declared in [package.json](package.json).
 
 ## Working rules
 
@@ -88,21 +98,27 @@ These come from the engine project and apply here without change.
   from the engine itself, never written into the code.
 - **Every increment is an issue, a branch, tests and a pull request**, in that order.
 
-## Getting started
+## Development
 
-Setup instructions arrive with the first stage. Until then, read the
-[roadmap](ROADMAP.md).
+### Current setup status
 
-## Licence
+The SvelteKit 3 dependencies and lockfile are installed and verified with `pnpm check`,
+`pnpm build`, and `pnpm install --frozen-lockfile`. The test setup has also passed
+five Vitest tests on macOS arm64. The desktop smoke test covers navigation and reloads;
+Windows/Linux execution and installers remain unverified.
 
-Apache 2.0, the same as the engine. See [LICENSE](LICENSE).
+Lucide is pinned to 1.44.0 because 1.45.0 was inside pnpm's minimum release-age window
+when installed. Supply-chain policies remain enabled with no exceptions.
 
----
+### Prerequisites
 
-<p align="center">
-  <sub>
-    Developed by <a href="https://www.linkedin.com/in/hocine-benkelaya/">Hocine Benkelaya</a> &middot;
-    Managed by <a href="https://wizworks.io/">WizWorks OÜ</a>,
-    a property of <a href="https://neuralnetworkholding.com/">NEURAL NETWORK HOLDING LTD</a>
-  </sub>
-</p>
+- Node.js satisfying the `engines.node` requirement in [package.json](package.json).
+- Corepack 0.34.7 or newer, using a release compatible with your Node.js version.
+- Rust and the [Tauri prerequisites for your operating system](https://tauri.app/start/prerequisites/).
+
+The commands below run from the repository root. To set up dependencies, enable
+Corepack's pnpm shim and install:
+
+```sh
+corepack enable pnpm
+pnpm install --frozen-lockfile

@@ -73,8 +73,11 @@ Tauri 2 with a SvelteKit static single-page application. Workspace, Models, Hist
 Settings navigation that works by keyboard and identifies the active page. One real native
 command that reports application version, operating system and architecture — and that
 reports nothing about GPU compatibility, because at this stage nothing knows. Dependency
-locks, formatting, type checks, behavioural tests and path-scoped CI. Developer documentation
+locks, formatting, type checks, behavioural tests and CI. Developer documentation
 covering commands, architecture, tests and remaining work.
+
+The initial frontend CI runs on every pull request and push to `main`. Add path-based
+selection when separate native jobs make it useful; native CI remains future work.
 
 Inference and model management stay visibly unavailable. No fake models, no generated
 results.
