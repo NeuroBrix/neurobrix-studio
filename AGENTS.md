@@ -48,7 +48,9 @@ still describe version 2. Never claim an unavailable tool ran.
 
 ## Verification and handoff
 
-- Run `pnpm check` and `pnpm build` for frontend changes. Add meaningful behavioral
+- Run `pnpm lint`, `pnpm check`, and `pnpm build` for frontend changes. Use `pnpm format`
+  or `pnpm lint:fix` for formatting and safe fixes, then review the diff. Biome's Svelte
+  support is experimental and does not replace Svelte checks. Add meaningful behavioral
   tests where warranted; use the scenarios in CONVENTIONS.md.
 - For Rust changes, run appropriate Cargo checks from `src-tauri` and validate native
   behavior where possible. `pnpm tauri dev` launches the desktop development app.

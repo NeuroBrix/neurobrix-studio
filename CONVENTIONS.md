@@ -292,6 +292,17 @@ See [Svelte boundaries](https://svelte.dev/docs/svelte/svelte-boundary).
 
 ## Verification
 
+Use the project-pinned Biome configuration for formatting, linting, and import
+organization. The baseline is two-space indentation, a 100-column line width, and
+Biome's recommended rules. Run `pnpm format` for formatting only, `pnpm lint:fix` for
+safe fixes, and `pnpm lint` for a read-only combined check. Review automated changes;
+do not apply unsafe fixes indiscriminately or disable rules broadly to hide errors.
+
+Biome's full Svelte/HTML support is experimental. Keep Svelte compiler/type checks
+and the build as separate checks, and continue the Svelte MCP workflow when available.
+Tailwind directive parsing is enabled. Biome does not replace Cargo tooling or format
+Markdown/YAML here; static assets, generated files, and vendored skills are excluded.
+
 When implementing a resource, verify success, empty results, unavailable services, malformed
 responses, failed refreshes, overlapping requests completing out of order, cancellation,
 and disposal. Verify loaders are not duplicated on mount and identity changes cannot show

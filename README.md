@@ -86,6 +86,10 @@ dependency installs repeatable.
 | `pnpm tauri dev` | Start Vite and open the desktop application. |
 | `pnpm dev` | Start the browser frontend at `http://localhost:1420`. |
 | `pnpm check` | Run Svelte and TypeScript checks. |
+| `pnpm lint` | Check Biome lint rules, formatting, and import organization. |
+| `pnpm lint:fix` | Apply Biome formatting, import organization, and safe lint fixes. |
+| `pnpm format` | Format supported project files with Biome. |
+| `pnpm format:check` | Check formatting without changing files. |
 | `pnpm build` | Generate the static frontend in `build/`. |
 | `pnpm tauri build` | Build the native app and platform bundles. |
 
@@ -121,6 +125,14 @@ extensions when importing through `#lib`, for example `#lib/components/ui/button
 Component generation with the new SvelteKit 3 aliases still needs verification.
 
 ### Development conventions
+
+Biome is pinned in `package.json` and configured in [biome.json](biome.json). It handles
+JavaScript, TypeScript, JSON, CSS (including Tailwind directives), HTML, and Svelte.
+Full Svelte/HTML support is experimental in Biome, so keep running `pnpm check` and
+`pnpm build` alongside `pnpm lint`. Rust uses Cargo tooling; Markdown, YAML, static
+assets, generated output, and vendored agent skills are outside this Biome setup.
+For Zed integration, use the [Biome extension](https://biomejs.dev/reference/zed/)
+with the project configuration. Editor preferences remain local.
 
 [CONVENTIONS.md](CONVENTIONS.md) defines the shared coding conventions for developers and
 agents. Use page loaders for initial route data and scoped Svelte 5 resource classes for
