@@ -52,6 +52,9 @@ still describe version 2. Never claim an unavailable tool ran.
   or `pnpm lint:fix` for formatting and safe fixes, then review the diff. Biome's Svelte
   support is experimental and does not replace Svelte checks. Add meaningful behavioral
   tests where warranted; use the scenarios in CONVENTIONS.md.
+- Run the relevant test layer: `pnpm test` for logic/components, `pnpm test:rust` for
+  native logic, and `pnpm test:e2e` for desktop integration. Keep WDIO's `e2e` Cargo
+  feature out of normal builds. Distinguish mocked, native, and real-engine evidence.
 - For Rust changes, run appropriate Cargo checks from `src-tauri` and validate native
   behavior where possible. `pnpm tauri dev` launches the desktop development app.
 - For documentation-only edits, verify links, commands, and consistency with the project.

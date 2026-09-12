@@ -214,6 +214,14 @@ out of scope; gated models must show the existing access requirement and recover
 
 ## Acceptance and verification
 
+Use the testing stack in [CONVENTIONS.md](../CONVENTIONS.md#test-layers): Vitest for
+logic and real-browser Svelte components, Cargo tests for native logic, and WebdriverIO
+with its optional embedded driver for native workflows. The initial scaffold smoke
+test covers greeting IPC and reload only. Add deterministic engine protocol fixtures
+as the contract is implemented; run real-engine and GPU acceptance separately.
+Keep the `e2e` feature out of production builds and do not equate instrumented-app
+success with installer or cross-platform validation.
+
 - Discovery handles absent, incompatible, and unavailable engines without loading models.
 - Contract tests cover malformed messages, truncated frames, invalid lengths, unexpected
   variants, and incompatible versions across the engine, Rust, and Valibot boundaries.

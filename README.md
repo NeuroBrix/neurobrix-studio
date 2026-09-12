@@ -56,8 +56,9 @@ versions and the pnpm pin are declared in [package.json](package.json).
 ### Current setup status
 
 The SvelteKit 3 dependencies and lockfile are installed and verified with `pnpm check`,
-`pnpm build`, and `pnpm install --frozen-lockfile`. Native launch, packaged routing,
-and installer builds have not been verified.
+`pnpm build`, and `pnpm install --frozen-lockfile`. The test setup has also passed
+five Vitest tests and the built desktop greeting/reload smoke test on macOS arm64.
+Windows/Linux execution, nested packaged routing, and installers remain unverified.
 
 Lucide is pinned to 1.44.0 because 1.45.0 was inside pnpm's minimum release-age window
 when installed. Supply-chain policies remain enabled with no exceptions.
@@ -90,11 +91,52 @@ dependency installs repeatable.
 | `pnpm lint:fix` | Apply Biome formatting, import organization, and safe lint fixes. |
 | `pnpm format` | Format supported project files with Biome. |
 | `pnpm format:check` | Check formatting without changing files. |
+| `pnpm test` | Run Vitest logic and Chromium component tests once. |
+| `pnpm test:watch` | Watch Vitest tests during development. |
+| `pnpm test:unit` | Run Node-based logic tests. |
+| `pnpm test:component` | Run Svelte tests in Chromium. |
+| `pnpm test:rust` | Run Cargo tests (the scaffold currently has no Rust test cases). |
+| `pnpm test:e2e` | Build an isolated native test app and run the WDIO smoke test. |
 | `pnpm build` | Generate the static frontend in `build/`. |
 | `pnpm tauri build` | Build the native app and platform bundles. |
 
 Native commands, including the starter screen's greeting, require the Tauri application.
 Opening the frontend in a browser does not provide native IPC.
+
+### Testing setup
+
+After installing dependencies, install the test browser explicitly:
+
+```sh
+pnpm exec playwright install chromium
+```
+
+Vitest uses Node for logic and a real Chromium browser for Svelte components.
+WebdriverIO tests the built desktop app using the embedded Tauri driver; no external
+`tauri-driver`, Edge driver, or paid macOS driver is needed. Native tests require Rust
+and the platform's Tauri prerequisites, including a usable desktop session.
+
+`pnpm test:e2e` builds frontend assets and a native binary with the explicit `e2e`
+feature in `src-tauri/target/e2e`. It verifies the greeting through real IPC and repeats
+after a webview reload. A test-only Tauri config enables the global API and WDIO
+permissions; the `e2e` Vite mode includes the frontend automation bridge. Normal builds
+exclude that bridge, both automation plugins, and this config overlay. Do not distribute
+the instrumented test binary. Protocol parsing, persistence, and engine acceptance
+tests will be added with those features; the smoke test does not establish them.
+
+The pnpm workspace configuration allows esbuild's installation script and disables
+unused Edge/Firefox driver download scripts. A scoped WDIO globals override aligns
+the Tauri service with the runner's assertion-library peer requirement.
+
+See [testing conventions](CONVENTIONS.md#test-layers) for placement, ownership, and
+verification rules. CI workflows and coverage thresholds are not configured yet.
+
+Verified locally on macOS arm64: five Vitest tests, the native greeting/reload test,
+frontend checks/build, and normal native compilation without the `e2e` feature.
+`cargo test` succeeds with zero Rust test cases at this scaffold stage. Vitest currently
+logs a Vite hook compatibility warning, and WDIO logs title-matching warnings because
+the scaffold's document title differs from its native window title. These did not
+prevent the verified tests from passing. Other operating systems are not yet tested.
 
 ### Frontend configuration
 

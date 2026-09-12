@@ -292,6 +292,57 @@ See [Svelte boundaries](https://svelte.dev/docs/svelte/svelte-boundary).
 
 ## Verification
 
+### Test layers
+
+| Layer | Tool | Responsibility |
+| --- | --- | --- |
+| TypeScript logic | Vitest Node project | Services, contract parsing, pure logic and deterministic request races |
+| Svelte behavior | Vitest Browser Mode, Playwright Chromium, vitest-browser-svelte | Reactive updates, keyboard interaction, loading/error presentation |
+| Native logic | Cargo tests | Protocol decoding, process ownership, persistence and cleanup |
+| Desktop integration | WebdriverIO with the embedded Tauri driver | Built frontend, real IPC, webview navigation and native operation lifecycle |
+
+Put logic tests beside their implementation as `*.test.ts` and browser component tests
+as `*.svelte.test.ts`. Rune-dependent tests belong in the Svelte-compiled browser project.
+Desktop tests live in `test/e2e`, with separate TypeScript configuration and explicit
+Mocha/WDIO imports. Do not mix runner globals. Use Rust unit tests near their modules
+and integration tests under `src-tauri/tests` when appropriate.
+
+Run `pnpm test` for both Vitest projects, `pnpm test:watch` during development,
+`pnpm test:unit` or `pnpm test:component` to target a layer, `pnpm test:rust` for Cargo,
+and `pnpm test:e2e` for the built desktop app. Install Chromium separately with
+`pnpm exec playwright install chromium`. Playwright supplies Vitest's browser;
+there is no separate Playwright E2E suite or simulated DOM environment.
+
+Test behavior at the lowest useful layer. Prefer accessible selectors, awaited
+assertions, controlled promises, and isolated fixtures. Use stable IDs only when no
+accessible selector fits. Avoid fixed sleeps, broad snapshots, automatic retries that
+hide failures, arbitrary coverage quotas, and tests that merely restate implementation.
+Add tests for meaningful behavior changes; documentation and formatting do not need
+new behavioral tests.
+
+Keep fixture data and temporary databases separate from real models, engine caches,
+credentials, and conversations. Mocks are allowed in tests, never as fabricated product
+behavior. Component tests with mocked services, desktop tests with a controlled engine
+fixture, and real-engine/GPU acceptance tests provide different evidence; label them.
+The initial desktop smoke test uses real Rust IPC without engine integration or mocks.
+
+The embedded driver and backend window-query plugin are optional Rust dependencies
+enabled only by the `e2e` Cargo feature. The desktop test command builds into a separate
+`src-tauri/target/e2e` directory with bundled frontend assets. Its explicit Tauri config
+overlay enables the global API and WDIO permissions, and selects the `e2e` Vite mode
+which includes the frontend automation bridge. Normal builds load neither the overlay,
+frontend bridge, nor the plugins. Do not enable `e2e` in default features or
+distribution builds. An instrumented native test build does not verify
+signed installers; check the normal build and its dependency graph separately.
+
+Capture test failures and reports under ignored test-output directories. Keep fixtures
+and configurations versioned. Add CI and coverage reporting only when needed; neither
+is configured by this initial setup. Refer to the
+[Vitest component guide](https://vitest.dev/guide/browser/component-testing) and
+[Tauri WebDriver guide](https://tauri.app/develop/tests/webdriver/) for upstream guidance.
+
+### Checks and acceptance
+
 Use the project-pinned Biome configuration for formatting, linting, and import
 organization. The baseline is two-space indentation, a 100-column line width, and
 Biome's recommended rules. Run `pnpm format` for formatting only, `pnpm lint:fix` for
