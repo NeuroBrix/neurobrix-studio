@@ -26,6 +26,9 @@ export default defineConfig({
       },
       {
         plugins: [svelte({ configFile: false })],
+        optimizeDeps: {
+          include: ["@tauri-apps/api/core", "@tauri-apps/api/mocks", "valibot"],
+        },
         resolve: { alias: { "#lib": fileURLToPath(new URL("./src/lib", import.meta.url)) } },
         test: {
           name: "component",

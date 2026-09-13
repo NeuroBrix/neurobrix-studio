@@ -25,28 +25,27 @@ async function nativeTitle() {
 
 async function loadDocument(path?: string) {
   const url = path === undefined ? null : new URL(path, appUrl).href;
-  await browser.execute((target) => {
+  await browser.execute(() => {
     document.documentElement.dataset.navigationPending = "true";
-    // Return the driver's script result before replacing the webview document.
-    setTimeout(() => {
-      if (target === null) window.location.reload();
-      else window.location.assign(target);
-    }, 0);
-  }, url);
-  await browser.waitUntil(async () =>
-    browser.execute(
-      () =>
-        !document.documentElement?.hasAttribute("data-navigation-pending") &&
-        document.querySelector("main h1") !== null &&
-        document.querySelectorAll("nav[aria-label='Studio'] a").length === 4,
-    ),
+  });
+  // Navigation must not destroy the document while execute() is collecting its result.
+  if (url === null) await browser.refresh();
+  else await browser.url(url);
+  // Read a native snapshot while the old document is being replaced; execute()
+  // stores its result in that document and can lose it during navigation.
+  await browser.waitUntil(
+    async () => !(await browser.getPageSource()).includes("data-navigation-pending="),
   );
+  await expect($("main h1")).toBeDisplayed();
+  await expect($$("nav[aria-label='Studio'] a")).toBeElementsArrayOfSize(4);
 }
 
 describe("navigation shell in the built desktop application", () => {
   before(async () => {
     // Keep the driver on this window while its document and native titles change.
     await browser.switchToWindow(await browser.getWindowHandle());
+    // The embedded service may reuse the app between spec files.
+    await $("nav a[href='/workspace']").click();
     await expectPage("Workspace");
     appUrl = await browser.getUrl();
   });

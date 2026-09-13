@@ -15,6 +15,7 @@ vite.config.*.timestamp-*
 /playwright-report/
 /test-results/
 /test-artifacts/
+/.vitest/
 **/__screenshots__/
 
 # Local environment files (keep the documented example)

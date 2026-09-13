@@ -32,6 +32,7 @@ afterAll(async () => {
 
 test("keyboard-only traversal reaches all four routes with visible focus and one active page", async () => {
   await page.goto(baseUrl);
+  await page.getByRole("heading", { name: "Workspace", exact: true }).waitFor();
   await expect.poll(() => page.locator("main h1").textContent()).toBe("Workspace");
   await page.keyboard.press("Tab");
   await expect.poll(() => page.locator(":focus").getAttribute("href")).toBe("#main-content");
@@ -60,6 +61,7 @@ test("keyboard-only traversal reaches all four routes with visible focus and one
 
 test("the skip link moves keyboard focus to the page content", async () => {
   await page.goto(baseUrl);
+  await page.getByRole("heading", { name: "Workspace", exact: true }).waitFor();
   await expect.poll(() => page.locator("main h1").textContent()).toBe("Workspace");
   await page.keyboard.press("Tab");
   await page.keyboard.press("Enter");
