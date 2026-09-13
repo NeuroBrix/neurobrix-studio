@@ -1,8 +1,8 @@
 # Development conventions
 
 These conventions apply to developers and coding agents. Read them alongside
-[AGENTS.md](AGENTS.md) and the [roadmap](ROADMAP.md). They describe how to build future
-features; the engine integration and resource layer are not implemented yet.
+[AGENTS.md](AGENTS.md) and the [roadmap](ROADMAP.md). Engine integration is not implemented
+yet; the Settings app-information panel uses the service and scoped-resource pattern below.
 
 Framework requirements are identified below. Choices about data ownership, resource
 classes, and component style are project defaults, not restrictions imposed by Svelte.
@@ -325,8 +325,9 @@ Keep fixture data and temporary databases separate from real models, engine cach
 credentials, and conversations. Mocks are allowed in tests, never as fabricated product
 behavior. Component tests with mocked services, desktop tests with a controlled engine
 fixture, and real-engine/GPU acceptance tests provide different evidence; label them.
-The desktop smoke test covers navigation and reloads in the built webview. It does not
-verify application IPC or engine integration.
+The desktop tests cover navigation, reloads and app-information reads through real IPC
+in the built webview. They do not verify engine integration. Component tests use the
+Tauri IPC mock to exercise app-information failures and retry; those are mocked evidence.
 
 The embedded driver and backend window-query plugin are optional Rust dependencies
 enabled only by the `e2e` Cargo feature. The desktop test command builds into a separate
@@ -361,8 +362,30 @@ skip documentation-only changes; changes to app code, build inputs or unrecognis
 run the matrix, and manual dispatch always runs it. The selector has its own tests.
 Normal builds exclude desktop automation plugins and create no installer or release.
 These jobs do not launch the GUI: report native launch, keyboard and engine checks
-separately. Cargo currently defines no Rust tests, so a successful test command does
-not establish native behavior coverage.
+separately. Cargo includes tests for the app-information command and its serialized
+response; those tests do not establish GUI or engine behavior coverage.
+
+### App-information contract
+
+`get_app_info` returns `version`, `os` and `architecture` as nonempty strings. The version
+comes from Tauri's application metadata, the same source as its built-in `getVersion`;
+OS and architecture describe the application's compiled target, not physical hardware
+or GPU compatibility. Keep all version manifests aligned. The frontend service validates
+the response as `unknown` with Valibot and
+deliberately discards additional fields. Native unavailability, command failures and
+invalid responses are reported explicitly; none becomes an empty successful result.
+Rust tests use Tauri's test runtime to verify the command with a configured version
+different from Cargo's package version. Tauri's test feature is a development dependency.
+On Windows MSVC, the build script embeds the Common Controls v6 manifest through the
+linker for both the app and Rust test executables. Tauri's resource-based manifest does
+not reach library unit-test harnesses; keeping the dependency in the final link prevents
+them from failing before the tests start.
+
+The optional Settings panel owns its resource and reads on mount, so a sidebar hover
+does not issue native work and the Settings route can render while the read is pending.
+Refresh retains the last success and reports failures beside it. Leaving the panel
+discards late results; Tauri reads themselves cannot be cancelled. Reuse this ownership
+pattern for future services, while defining their own contracts from the actual source.
 
 Use the project-pinned Biome configuration for formatting, linting, and import
 organization. The baseline is two-space indentation, a 100-column line width, and
