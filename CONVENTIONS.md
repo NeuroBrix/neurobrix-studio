@@ -376,6 +376,10 @@ deliberately discards additional fields. Native unavailability, command failures
 invalid responses are reported explicitly; none becomes an empty successful result.
 Rust tests use Tauri's test runtime to verify the command with a configured version
 different from Cargo's package version. Tauri's test feature is a development dependency.
+On Windows MSVC, the build script embeds the Common Controls v6 manifest through the
+linker for both the app and Rust test executables. Tauri's resource-based manifest does
+not reach library unit-test harnesses; keeping the dependency in the final link prevents
+them from failing before the tests start.
 
 The optional Settings panel owns its resource and reads on mount, so a sidebar hover
 does not issue native work and the Settings route can render while the read is pending.
