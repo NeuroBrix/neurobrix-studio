@@ -4,6 +4,8 @@ import { createServer, type ViteDevServer } from "vite";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import appConfig from "../../src-tauri/tauri.conf.json";
 
+// The pinned embedded desktop driver's synthetic key events do not trigger default
+// Tab traversal. Use real browser keys here and verify native keyboard behavior separately.
 let server: ViteDevServer;
 let browser: Browser;
 let page: Page;
