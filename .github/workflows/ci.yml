@@ -14,6 +14,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Select native checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      native: ${{ steps.select.outputs.native }}
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          check-latest: true
+          package-manager-cache: false
+
+      - name: Test native job selection
+        run: node --test scripts/ci/*.test.mjs
+
+      - name: Select native checks
+        id: select
+        run: node scripts/ci/native-changes.mjs
+
   frontend:
     name: Frontend checks
     runs-on: ubuntu-24.04
@@ -58,10 +85,91 @@ jobs:
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run unit and component tests
+      - name: Run unit, component, and browser navigation tests
         run: pnpm test
 
       - name: Build static frontend
         run: |
           pnpm build
           test -f build/index.html
+
+  native:
+    name: Native checks (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Linux build prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            build-essential pkg-config curl wget file libwebkit2gtk-4.1-dev \
+            libssl-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          check-latest: true
+          package-manager-cache: false
+
+      - name: Enable Corepack-managed pnpm
+        run: |
+          npm install --global corepack@0.36.0
+          corepack enable pnpm
+
+      - name: Locate pnpm store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json') }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up pinned Rust toolchain
+        run: |
+          rustup show active-toolchain
+          rustc --version --verbose
+          cargo --version
+          rustup component list --installed
+
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all --check
+
+      - name: Build native application without an installer
+        run: pnpm tauri build --debug --no-bundle -- --locked
+
+      - name: Run available Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Check Rust with Clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
+
+      - name: Check normal build excludes desktop automation plugins
+        run: |
+          native_dependencies="$(cargo tree --manifest-path src-tauri/Cargo.toml --locked --edges normal --prefix none)"
+          if echo "$native_dependencies" | grep -Eq '^tauri-plugin-wdio(-webdriver)? v'; then
+            echo '::error::Desktop automation plugins are enabled in the normal build.'
+            exit 1
+          fi
