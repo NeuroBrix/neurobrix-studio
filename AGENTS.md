@@ -34,7 +34,7 @@ Project conventions take precedence over generic skill examples. Do not copy glo
 available or unrelated skills into the repository as part of routine work.
 
 Configure Svelte MCP locally in your agent client using `https://mcp.svelte.dev/mcp`.
-Codex users can use `.codex/config.toml`; `.codex/` is ignored and not shared through Git.
+Keep client-specific configuration in your personal environment, outside the repository.
 For Svelte work:
 
 1. Use `list-sections`, then `get-documentation` for the relevant sections.
