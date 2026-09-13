@@ -5,12 +5,14 @@ and you will not be surprised by a review.
 
 ## Who decides
 
-Hocine Benkelaya (`@benkelaya`) is the project lead and the only maintainer.
-He reviews and merges. No one else merges, on any branch, on either repository.
+Hocine Benkelaya (`@benkelaya`) leads the project and does the final review, so
+merges into `main` go through him. That is the only thing reserved; everything else
+is genuinely open.
 
-Contributors are expected to propose, to disagree, and to argue a different
-direction when they see one. Say it in the issue before writing the code, not in
-the pull request after. A well-argued objection is welcome at any time.
+Please propose, disagree, and argue for a different direction whenever you see one —
+several decisions here were changed because a contributor pushed back, and that is
+how it should work. The earlier it comes the better: an objection in the issue costs
+a conversation, the same objection after the code is written costs a rewrite.
 
 ## The engine is off-limits
 
@@ -36,23 +38,28 @@ them skipped.
    been discussed is a proposal, not an assignment.
 2. **One branch per issue**, named `feat/<issue-number>-<short-slug>` or
    `fix/<issue-number>-<short-slug>`.
-3. **Tests come with the code**, in the same pull request. A pull request with no
-   test is not reviewed, whatever it contains.
-4. **One pull request, one issue.** Do not bundle a scaffold, a documentation
-   rewrite and a design plan into a single change. They are reviewed differently and
-   they are merged at different moments.
+3. **Tests come with the code**, in the same pull request. If something genuinely
+   cannot be tested, say so and say why — that is a fine answer. Silence is what
+   makes a change hard to accept.
+4. **One pull request, one issue.** A scaffold, a documentation rewrite and a
+   design plan are reviewed differently and land at different moments, so they are
+   much easier to move forward separately than bundled together.
 
-Link the issue with `Refs #N`. Use `Closes #N` **only** when every acceptance
-criterion of that issue is met by the pull request. Closing an issue that is
-half-done loses the remaining work.
+Link the issue with `Refs #N`, and keep `Closes #N` for when every acceptance
+criterion is actually met — otherwise the issue closes automatically and the
+remaining work quietly disappears with it.
 
 ## What a pull request must carry
 
 - The exact commands that were run, and their environment.
-- **The checks that were not run**, stated as not run. This matters more than the
-  ones that passed.
-- What was observed on one platform is never claimed for the other two. Browser
-  checks are browser checks: they are not native validation and not GPU validation.
+- **The checks that were not run**, stated as not run. This is the part we value
+  most. Nobody here has all three platforms on their desk, and an honest gap is
+  never held against you — it is an unstated one that costs everyone time later.
+- What was observed on one platform, left as that platform's result. Browser checks
+  are browser evidence; they are not native or GPU validation.
+
+We take your word for what we cannot verify ourselves. That trust is the whole
+reason the point above matters.
 
 ## Working rules
 
@@ -68,14 +75,14 @@ half-done loses the remaining work.
 - **No paths in the code.** Locations are resolved at runtime from the platform API,
   never written literally and never assembled by hand from a home directory. Studio's
   data comes from Tauri's path API; anything belonging to the engine is asked of the
-  engine. See *Where things live on disk* in [ROADMAP.md](ROADMAP.md). A hardcoded
-  path is a blocking review comment, including in tests and in scripts.
+  engine. See *Where things live on disk* in [ROADMAP.md](ROADMAP.md). This one comes
+  up in review every time, tests and scripts included.
 
 ## Licence and third-party content
 
-This repository is Apache 2.0. Every file that declares a licence declares Apache
-2.0, including package metadata. A pull request that declares another licence
-anywhere is not merged.
+This repository is Apache 2.0, and every file that declares a licence needs to say
+the same thing, package metadata included. It is the one detail we cannot let
+through, because the project's intellectual property sits behind it.
 
 Do not vendor third-party content — documentation, component libraries, agent
 skills, generated assets — without saying where it comes from, under which licence,
@@ -96,10 +103,11 @@ why.
 
 ## Talking to each other
 
-Everything technical happens on GitHub, in writing: issues for subjects, pull
-request reviews for code, mentions (`@benkelaya`, `@blackalam`, `@street2geek`) when
-someone needs to see something. Decisions taken elsewhere do not exist.
+Keeping the technical conversation on GitHub — issues for subjects, reviews for
+code, a mention when someone needs to see something — is worth the small effort.
+Chat is fine for arranging a call; it is just that a decision nobody can find later
+tends to get made twice.
 
-If two contributors are working on the same area, say so in the issue before
-starting. Two people solving the same problem twice is the one waste this project
-cannot afford.
+Same reason for saying in the issue what you are picking up before you start it.
+It has already happened here that two people built the same foundation in parallel
+without knowing, and neither of them deserved that.

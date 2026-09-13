@@ -34,8 +34,9 @@ application is fit for someone other than its author to run, so it is not reache
 accident and not carried in a branch ahead of time.
 
 Until then the three declared versions — `package.json`, `tauri.conf.json` and
-`Cargo.toml` — say `0.0.x` and say the same thing as each other. A pull request that
-raises the minor digit is refused unless raising it is the point of the pull request.
+`Cargo.toml` — say `0.0.x` and say the same thing as each other. Raising the minor
+digit is a decision in its own right, so it gets its own pull request rather than
+riding along with something else.
 
 ## Where things live on disk
 
