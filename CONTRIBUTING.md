@@ -46,6 +46,24 @@ repository keeps owner review on every branch, and that is not an oversight to b
 worked around — it is the one place where a wrong change is expensive enough to be
 worth the wait.
 
+### The other half of that rule: fix it at the source
+
+Not being allowed to change the engine is not a licence to work around it.
+
+When something Studio needs is genuinely missing from the engine, the answer is that
+the engine gains it — not that Studio grows a workaround, a reimplementation, a
+shim, or a half-measure with a comment promising to revisit it. Those never get
+revisited, they quietly become the architecture, and the second implementation ends
+up disagreeing with the first at the worst possible moment.
+
+So: raise it, say what is missing and why, and pick up something else while it is
+fixed properly upstream. Waiting a version is cheaper than carrying a workaround
+forever. Studio stays clean.
+
+The same instinct applies inside Studio itself. A problem gets fixed where it starts,
+not patched where it happens to show up. This is meant to be enterprise-grade work
+and that is largely what the phrase means in practice.
+
 This is not about trust. The engine is governed by rules that took a long time to
 establish, and it has its own schedule.
 
