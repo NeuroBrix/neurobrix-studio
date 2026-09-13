@@ -312,6 +312,7 @@ Run `pnpm test` for all Vitest projects, `pnpm test:watch` during development,
 and `pnpm test:e2e` for the built desktop app. Install Chromium separately with
 `pnpm exec playwright install chromium`. Keep browser navigation tests in the `navigation`
 Vitest project, and report browser and native keyboard verification separately.
+Run `pnpm test:ci` for the workflow's native-job selection tests.
 
 Test behavior at the lowest useful layer. Prefer accessible selectors, awaited
 assertions, controlled promises, and isolated fixtures. Use stable IDs only when no
@@ -353,6 +354,15 @@ with respect to source files. A passing frontend job does not verify native comp
 desktop IPC, packaged routing, installers, or GPU behavior; run relevant native checks
 separately and report their results. Do not treat the ten-minute CI timeout as a
 measured runtime guarantee.
+
+The same workflow runs native builds, Rust formatting, Cargo tests and Clippy on macOS,
+Windows and Linux, using the toolchain declared in `rust-toolchain.toml`. Native jobs
+skip documentation-only changes; changes to app code, build inputs or unrecognised paths
+run the matrix, and manual dispatch always runs it. The selector has its own tests.
+Normal builds exclude desktop automation plugins and create no installer or release.
+These jobs do not launch the GUI: report native launch, keyboard and engine checks
+separately. Cargo currently defines no Rust tests, so a successful test command does
+not establish native behavior coverage.
 
 Use the project-pinned Biome configuration for formatting, linting, and import
 organization. The baseline is two-space indentation, a 100-column line width, and
