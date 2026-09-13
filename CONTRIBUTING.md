@@ -5,9 +5,25 @@ and you will not be surprised by a review.
 
 ## Who decides
 
-Hocine Benkelaya (`@benkelaya`) leads the project and does the final review, so
-merges into `main` go through him. That is the only thing reserved; everything else
-is genuinely open.
+Hocine Benkelaya (`@benkelaya`) leads the project and owns its direction — the
+roadmap, the rules in this document, and what Studio is ultimately for.
+
+**He does not gate your work.** You both have maintainer access: open pull requests,
+review each other, merge into `main`, and keep moving without waiting on anyone.
+Nobody should sit blocked on an approval, and holding the project back for the sake
+of a rubber stamp would help no one.
+
+What happens instead is a regular pass over what has landed. If something drifts
+from the roadmap, from the rules here, or from where the project is heading, it gets
+raised and corrected then — in the open, with the reasoning. That is a conversation
+about direction, not a verdict on your work, and it is a fair trade for not having
+to queue behind a review.
+
+Two things make that trade work. Review each other's pull requests rather than
+self-merging when the change is substantial — a second pair of eyes is worth more
+than a maintainer's signature ever was. And keep writing pull request descriptions
+as carefully as you have been, because those descriptions are now the main way
+anyone reconstructs why something is the way it is.
 
 Please propose, disagree, and argue for a different direction whenever you see one —
 several decisions here were changed because a contributor pushed back, and that is
@@ -24,6 +40,11 @@ change is made to the engine in order to unblock Studio.** If Studio needs somet
 the engine does not offer, open an issue in the engine repository describing the
 need, and stop there. The maintainer decides whether and when it is built. Do not
 open a pull request against the engine to unblock yourself.
+
+The freedom you have here stops at that boundary, and deliberately so. The engine
+repository keeps owner review on every branch, and that is not an oversight to be
+worked around — it is the one place where a wrong change is expensive enough to be
+worth the wait.
 
 This is not about trust. The engine is governed by rules that took a long time to
 establish, and it has its own schedule.
