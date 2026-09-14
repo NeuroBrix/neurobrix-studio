@@ -2269,6 +2269,7 @@ dependencies = [
 name = "neurobrix-studio"
 version = "0.0.4"
 dependencies = [
+ "semver",
  "serde",
  "serde_json",
  "tauri",
