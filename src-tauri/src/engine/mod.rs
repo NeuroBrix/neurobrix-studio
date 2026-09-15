@@ -16,7 +16,7 @@ pub enum EgineAvailability {
         engine_version: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         protocol_version: Option<String>,
-        #[serde(skip_serialize_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "Option::is_none")]
         capabilities: Option<Vec<String>>,
     },
     /// Engine found and understood, but outside the tested range.
