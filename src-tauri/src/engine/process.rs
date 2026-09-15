@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 const MAX_OUTPUT_BYTES: usize = 1024 * 1024;
 
 pub struct ProcessOutcome {
+    /// `None` when the process was terminated by a signal.
     pub exit_code: Option<i32>,
     pub stdout: String,
     pub stderr: String,
@@ -30,6 +31,8 @@ pub trait ProcessRunner: Send + Sync {
     ) -> Result<ProcessOutcome, ProcessFailure>;
 }
 
+/// Real runner: `Command::args` only. There is no shell anywhere, so no
+/// interpolation is possible by construction.
 pub struct SystemProcessRunner;
 
 impl ProcessRunner for SystemProcessRunner {
