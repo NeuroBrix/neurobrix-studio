@@ -20,7 +20,7 @@ pub fn check_supported(engine_version: &str) -> Result<VersionCheck, VersionErro
         .parse()
         .map_err(|_| VersionError::Malformed)?;
     let requirement: VersionReq = VersionReq::parse(SUPPORTED_ENGINE_RANGE)
-        .expect("SUPPORTED_ENGINE_RANGE must be valid requirment");
+        .expect("SUPPORTED_ENGINE_RANGE must be a valid requirement");
     if requirement.matches(&version) {
         Ok(VersionCheck::Compatible)
     } else {
