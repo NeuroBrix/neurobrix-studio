@@ -132,3 +132,117 @@ fn non_empty_excerpt(text: &str) -> Option<String> {
         Some(excerpt(trimmed))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::process::{EngineLocator, ProcessFailure, ProcessOutcome, ProcessRunner};
+    use std::path::{Path, PathBuf};
+    use std::sync::Mutex;
+    use std::time::Duration;
+
+    const EXECUTABLE: &str = "/usr/local/bin/neurobrix";
+
+    struct FixedLocator(Option<PathBuf>);
+    impl EngineLocator for FixedLocator {
+        fn locate(&self, _name: &str) -> Option<PathBuf> {
+            self.0.clone()
+        }
+    }
+
+    struct FakeRunner {
+        outcome: Result<ProcessOutcome, ProcessFailure>,
+        seen: Mutex<(Option<PathBuf>, Vec<String>)>,
+    }
+    impl ProcessRunner for FakeRunner {
+        fn run(
+            &self,
+            program: &Path,
+            args: &[&str],
+            _timeout: Duration,
+        ) -> Result<ProcessOutcome, ProcessFailure> {
+            let mut seen = self.seen.lock().expect("fake runner lock");
+            seen.0 = Some(program.to_owned());
+            seen.1 = args.iter().map(|a| a.to_string()).collect();
+            self.outcome.clone()
+        }
+    }
+
+    fn valid_payload(version: &str) -> String {
+        format!(
+            r#"{{"schema":"neurobrix.discovery/1",
+                 "engine":{{"name":"neurobrix","version":"{version}"}},
+                 "protocol":{{"version":"1"}},
+                 "capabilities":["chat","completion"],
+                 "paths":{{"cache":"/c","store":"/s"}}}}"#
+        )
+    }
+
+    fn runner_with(outcome: Result<ProcessOutcome, ProcessFailure>) -> FakeRunner {
+        FakeRunner {
+            outcome,
+            seen: Mutex::new((None, Vec::new())),
+        }
+    }
+
+    fn ok(stdout: &str) -> Result<ProcessOutcome, ProcessFailure> {
+        Ok(ProcessOutcome {
+            exit_code: Some(0),
+            stdout: stdout.to_owned(),
+            stderr: String::new(),
+        })
+    }
+
+    #[test]
+    fn absent_when_executable_is_not_found() {
+        let runner = runner_with(ok(&valid_payload("0.5.3")));
+        let result = discover(&FixedLocator(None), &runner);
+        assert!(matches!(result, EngineAvailability::Absent));
+        // The probe must never run when nothing was found.
+        assert!(runner.seen.lock().expect("fake runner lock").0.is_none());
+    }
+
+    #[test]
+    fn incompatible_reports_version_and_supported_range() {
+        let runner = runner_with(ok(&valid_payload("0.7.0")));
+        let result = discover(&FixedLocator(Some(EXECUTABLE.into())), &runner);
+        match result {
+            EngineAvailability::Incompatible {
+                engine_version,
+                supported_range,
+            } => {
+                assert_eq!(engine_version, "0.7.0");
+                assert_eq!(supported_range, SUPPORTED_ENGINE_RANGE);
+            }
+            other => panic!("expected Incompatible, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn uses_the_fixed_argument_array_with_no_shell_string() {
+        let runner = runner_with(ok(&valid_payload("0.5.3")));
+        discover(&FixedLocator(Some(EXECUTABLE.into())), &runner);
+        let (program, args) = runner.seen.lock().expect("fake runner lock").clone();
+        assert_eq!(program.as_deref(), Some(Path::new(EXECUTABLE)));
+        assert_eq!(args, vec!["discover".to_owned()]);
+        for arg in DISCOVERY_ARGS {
+            assert!(
+                !arg.chars()
+                    .any(|c| c.is_whitespace() || "|;&$><`".contains(c)),
+                "discovery arguments must stay shell-free tokens"
+            );
+        }
+    }
+
+    // … remaining tests, one per acceptance case:
+    //  executable_found_runs_probe                (seen program == located path)
+    //  compatible_version_passes_through_payload  (protocol + capabilities preserved)
+    //  contract_failure_for_invalid_json
+    //  contract_failure_for_missing_required_fields   (e.g. {"schema":"neurobrix.discovery/1"})
+    //  contract_failure_for_unsupported_schema    ("neurobrix.discovery/2")
+    //  contract_failure_for_malformed_version     ("not.a.version")
+    //  unavailable_for_non_zero_exit_with_stderr_excerpt  (exit 2, argparse usage on stderr)
+    //  unavailable_on_timeout
+    //  unavailable_when_killed_by_signal          (exit_code: None)
+    //  spawn_failure_is_unavailable_not_a_crash
+}

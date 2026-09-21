@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 /// Discovery payloads and diagnostics are tiny; refuse to buffer more.
 const MAX_OUTPUT_BYTES: usize = 1024 * 1024;
 
+#[derive(Clone)]
 pub struct ProcessOutcome {
     /// `None` when the process was terminated by a signal.
     pub exit_code: Option<i32>,
@@ -15,6 +16,7 @@ pub struct ProcessOutcome {
     pub stderr: String,
 }
 
+#[derive(Clone)]
 pub enum ProcessFailure {
     /// Could not start the process at all.
     Spawn(String),
