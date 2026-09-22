@@ -1,3 +1,4 @@
+import * as v from "valibot";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import {
   engineAvailabilitySchema,
