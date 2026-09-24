@@ -36,8 +36,7 @@ export async function getEngineAvailability(): Promise<EngineAvailability> {
   if (!isTauri()) {
     return {
       state: "unavailable",
-      reason:
-        "Engine status is available in the desktop app, not in the browser preview.",
+      reason: "Engine status is available in the desktop app, not in the browser preview.",
     };
   }
 
@@ -49,8 +48,7 @@ export async function getEngineAvailability(): Promise<EngineAvailability> {
     }
     return {
       state: "contract_failure",
-      reason:
-        "The desktop shell returned an engine status this Studio build does not recognize.",
+      reason: "The desktop shell returned an engine status this Studio build does not recognize.",
     };
   } catch (error) {
     return {

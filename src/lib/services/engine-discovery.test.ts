@@ -1,9 +1,6 @@
 import * as v from "valibot";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import {
-  engineAvailabilitySchema,
-  getEngineAvailability,
-} from "./engine-discovery.js";
+import { engineAvailabilitySchema, getEngineAvailability } from "./engine-discovery.js";
 
 const native = vi.hoisted(() => ({ isTauri: vi.fn(), invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({
@@ -26,10 +23,7 @@ describe("engineAvailabilitySchema", () => {
         capabilities: ["chat"],
       }),
     ],
-    [
-      "compatible without optional fields",
-      valid("compatible", { engine_version: "0.6.0" }),
-    ],
+    ["compatible without optional fields", valid("compatible", { engine_version: "0.6.0" })],
     [
       "incompatible",
       valid("incompatible", {
@@ -48,10 +42,7 @@ describe("engineAvailabilitySchema", () => {
     ["missing state", {}],
     ["unknown state", valid("compatible!", {})],
     ["wrong field type", valid("compatible", { engine_version: 0.6 })],
-    [
-      "incompatible without range",
-      valid("incompatible", { engine_version: "0.7.0" }),
-    ],
+    ["incompatible without range", valid("incompatible", { engine_version: "0.7.0" })],
   ])("rejects malformed response: %s", (_name, input) => {
     const parsed = v.safeParse(engineAvailabilitySchema, input);
     expect(parsed.success).toBe(false);
