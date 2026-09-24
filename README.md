@@ -56,10 +56,11 @@ on Studio.
 
 Each Studio release declares the range of engine versions it has been tested against — a
 range and not a pinned version, so that an engine patch release does not require a Studio
-release. Today's range is `>=0.5.3,<0.6`.
+release. Today's range is `>=0.5.4,<0.6`: `0.5.4` is the first engine that can describe
+itself to a program, so it is the oldest one Studio can talk to at all.
 
 Studio and the engine version independently. Studio starting at `0.0.1` while the engine is
-at `0.5.3` is normal and expected; the two numbers are not meant to converge.
+at `0.5.4` is normal and expected; the two numbers are not meant to converge.
 
 ## Platforms
 
