@@ -1,10 +1,10 @@
 use semver::{Version, VersionReq};
 
-/// The range of engine versions this Studio build has been tested against.
-/// This constant is the single source of truth; README.md describes it and
-/// points here. Changing it is a deliberate decision, never a drive-by.
+/// The tested engine range — the single source of truth (README points
+/// here); changing it is deliberate, never a drive-by.
 pub const SUPPORTED_ENGINE_RANGE: &str = ">=0.5.3,<0.6";
 
+#[derive(Debug, PartialEq)]
 pub enum VersionCheck {
     Compatible,
     Incompatible,
@@ -25,5 +25,45 @@ pub fn check_supported(engine_version: &str) -> Result<VersionCheck, VersionErro
         Ok(VersionCheck::Compatible)
     } else {
         Ok(VersionCheck::Incompatible)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn versions_inside_the_range_are_compatible() {
+        for version in ["0.5.3", "0.5.4", "0.5.5"] {
+            assert_eq!(
+                check_supported(version),
+                Ok(VersionCheck::Compatible),
+                "{version}"
+            );
+        }
+    }
+
+    #[test]
+    fn versions_outside_the_range_are_incompatible() {
+        // Pre-releases of an out-of-range version are excluded too: an
+        // untested 0.6.0 candidate is not a tested engine.
+        for version in ["0.5.2", "0.6.0", "0.6.0-rc.1", "1.0.0"] {
+            assert_eq!(
+                check_supported(version),
+                Ok(VersionCheck::Incompatible),
+                "{version}"
+            );
+        }
+    }
+
+    #[test]
+    fn non_semver_versions_are_malformed() {
+        for version in ["", "0.5", "v0.5.4", "not.a.version"] {
+            assert_eq!(
+                check_supported(version),
+                Err(VersionError::Malformed),
+                "{version}"
+            );
+        }
     }
 }
