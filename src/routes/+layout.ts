@@ -14,5 +14,5 @@ if (import.meta.env.MODE === "e2e" && typeof window !== "undefined") {
 
 export const load: LayoutLoad = async ({ depends }) => {
   depends(engineDependencyKey);
-  return { engine: await getEngineAvailability() };
+  return { engine: getEngineAvailability() };
 };

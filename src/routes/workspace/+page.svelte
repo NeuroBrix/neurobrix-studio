@@ -10,4 +10,9 @@
 </script>
 
 <h1 class="text-3xl font-semibold tracking-tight">Workspace</h1>
-<EngineStatus availability={data.engine} {refresh} />
+
+{#await data.engine}
+  <p>Checking the NeuroBrix Engine...</p>
+{:then availability}
+  <EngineStatus {availability} {refresh} />
+{/await}
