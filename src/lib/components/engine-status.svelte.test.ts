@@ -7,7 +7,7 @@ const cases: [name: string, availability: EngineAvailability, expected: RegExp][
   ["compatible", { state: "compatible", engine_version: "0.5.4" }, /engine ready/],
   [
     "incompatible",
-    { state: "incompatible", engine_version: "0.7.0", supported_range: ">=0.5.3,<0.6" },
+    { state: "incompatible", engine_version: "0.7.0", supported_range: ">=0.5.4,<0.6" },
     /outside the tested range/,
   ],
   ["absent", { state: "absent" }, /No NeuroBrix engine found/],

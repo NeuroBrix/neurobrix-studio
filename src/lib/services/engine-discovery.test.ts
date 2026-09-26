@@ -28,7 +28,7 @@ describe("engineAvailabilitySchema", () => {
       "incompatible",
       valid("incompatible", {
         engine_version: "0.7.0",
-        supported_range: ">=0.5.3,<0.6",
+        supported_range: ">=0.5.4,<0.6",
       }),
     ],
     ["absent", valid("absent")],
