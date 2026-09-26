@@ -61,12 +61,26 @@ impl ProcessRunner for SystemProcessRunner {
         loop {
             match child.try_wait() {
                 Ok(Some(status)) => {
-                    // The child exited, so its pipe write-ends are closed;
-                    // the drain threads finish on their own.
+                    // A descendant may still hold the pipes open; stay within the deadline.
+                    let grace = deadline
+                        .saturating_duration_since(Instant::now())
+                        .max(Duration::from_secs(1));
+                    let stdout = match stdout.recv_timeout(grace) {
+                        Ok(text) => text,
+                        Err(_) => {
+                            return Err(ProcessFailure::Timeout {
+                                stderr: stderr
+                                    .recv_timeout(Duration::from_secs(1))
+                                    .unwrap_or_default(),
+                            })
+                        }
+                    };
                     return Ok(ProcessOutcome {
                         exit_code: status.code(),
-                        stdout: stdout.recv().unwrap_or_default(),
-                        stderr: stderr.recv().unwrap_or_default(),
+                        stdout,
+                        stderr: stderr
+                            .recv_timeout(Duration::from_secs(1))
+                            .unwrap_or_default(),
                     });
                 }
                 Ok(None) if Instant::now() >= deadline => {
@@ -113,5 +127,29 @@ pub struct PathEngineLocator;
 impl EngineLocator for PathEngineLocator {
     fn locate(&self, executable_name: &str) -> Option<PathBuf> {
         which::which(executable_name).ok()
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    /// The shell exits immediately but its backgrounded child holds both
+    /// pipe write-ends open; the probe must fail as a timeout within its
+    /// budget instead of stalling on the held pipes.
+    #[test]
+    fn a_grandchild_holding_the_pipe_fails_as_a_timeout() {
+        match SystemProcessRunner.run(
+            Path::new("sh"),
+            &["-c", "sleep 2 & exit 0"],
+            Duration::from_millis(500),
+        ) {
+            Err(ProcessFailure::Timeout { .. }) => {}
+            Err(ProcessFailure::Spawn(message)) => panic!("spawn failed: {message}"),
+            Ok(outcome) => panic!(
+                "expected a timeout failure, got exit code {:?}",
+                outcome.exit_code
+            ),
+        }
     }
 }
