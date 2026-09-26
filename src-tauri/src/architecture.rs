@@ -10,11 +10,9 @@ mod guard {
     const PROCESS_MARKER: &str = concat!("std::", "process");
     const COMMAND_MARKER: &str = concat!("Command:", ":new");
 
-    fn walk(dir: &Path, out: &mut Vec<PathBuf>, extensions: &[&str]) {
-        let Ok(entries) = fs::read_dir(dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
+    fn walk(dir: &Path, out: &mut Vec<PathBuf>, extensions: &[&str]) -> std::io::Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
             let path = entry.path();
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if name.starts_with('.') || name == "target" || name == "gen" || name == "node_modules"
@@ -22,17 +20,22 @@ mod guard {
                 continue;
             }
             if path.is_dir() {
-                walk(&path, out, extensions);
+                walk(&path, out, extensions)?;
             } else if extensions.iter().any(|e| name.ends_with(e)) {
                 out.push(path);
             }
         }
+        Ok(())
     }
 
     #[test]
     fn rust_process_execution_lives_only_in_the_engine_module() {
         let mut files = Vec::new();
-        walk(Path::new("src"), &mut files, &[".rs"]);
+        walk(Path::new("src"), &mut files, &[".rs"]).expect("rust sources must be readable");
+        assert!(
+            !files.is_empty(),
+            "rust sources must be reachable from cargo test"
+        );
         for path in files {
             if path.ends_with("architecture.rs") {
                 continue; // this guard is the exception, not a violation
@@ -53,7 +56,8 @@ mod guard {
     fn frontend_never_executes_processes_or_shells() {
         let frontend = Path::new("../src");
         let mut files = Vec::new();
-        walk(frontend, &mut files, &[".ts", ".svelte", ".js"]);
+        walk(frontend, &mut files, &[".ts", ".svelte", ".js"])
+            .expect("frontend sources must be readable");
         assert!(
             !files.is_empty(),
             "frontend sources must be reachable from cargo test"
@@ -78,7 +82,12 @@ mod guard {
     #[test]
     fn the_engine_module_never_invokes_python_directly() {
         let mut files = Vec::new();
-        walk(Path::new("src/engine"), &mut files, &[".rs"]);
+        walk(Path::new("src/engine"), &mut files, &[".rs"])
+            .expect("engine sources must be readable");
+        assert!(
+            !files.is_empty(),
+            "engine sources must be reachable from cargo test"
+        );
         for path in files {
             let source = fs::read_to_string(&path).expect("readable source");
             assert!(
@@ -87,5 +96,16 @@ mod guard {
                 path.display()
             );
         }
+    }
+
+    #[test]
+    fn walk_fails_when_a_directory_cannot_be_read() {
+        // read_dir on a regular file errors on every platform, so a file
+        // is the cheapest portable unreadable directory.
+        let mut files = Vec::new();
+        assert!(
+            walk(Path::new("Cargo.toml"), &mut files, &[".rs"]).is_err(),
+            "walk must propagate read_dir errors instead of silently skipping them"
+        );
     }
 }
