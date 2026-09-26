@@ -2269,6 +2269,7 @@ dependencies = [
 name = "neurobrix-studio"
 version = "0.0.4"
 dependencies = [
+ "semver",
  "serde",
  "serde_json",
  "tauri",
@@ -2276,6 +2277,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-wdio",
  "tauri-plugin-wdio-webdriver",
+ "which",
 ]
 
 [[package]]
@@ -4671,6 +4673,15 @@ dependencies = [
  "thiserror 2.0.20",
  "windows",
  "windows-core 0.61.2",
+]
+
+[[package]]
+name = "which"
+version = "8.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bae2f2b2b816647a1cab1acc91f5bd20812d53cb344382635ec2181940c8034f"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

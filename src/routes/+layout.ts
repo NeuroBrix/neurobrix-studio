@@ -1,3 +1,6 @@
+import { engineDependencyKey, getEngineAvailability } from "#lib/services/engine-discovery.js";
+import type { LayoutLoad } from "./$types";
+
 // Tauri doesn't have a Node.js server to do proper SSR
 // so we use adapter-static with a fallback to index.html to put the site in SPA mode
 // See: https://svelte.dev/docs/kit/single-page-apps
@@ -8,3 +11,8 @@ export const ssr = false;
 if (import.meta.env.MODE === "e2e" && typeof window !== "undefined") {
   await import("@wdio/tauri-plugin");
 }
+
+export const load: LayoutLoad = async ({ depends }) => {
+  depends(engineDependencyKey);
+  return { engine: getEngineAvailability() };
+};

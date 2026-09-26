@@ -67,7 +67,7 @@
     {/if}
     {@render children()}
     <p class="max-w-prose text-sm text-muted-foreground">
-      In development. Engine features are not available yet.
+      In development. Models and inference are not available yet.
     </p>
   </main>
 </div>
