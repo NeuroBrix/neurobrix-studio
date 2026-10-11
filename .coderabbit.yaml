@@ -1,0 +1,66 @@
+# CodeRabbit — second reader on pull requests.
+#
+# It reads diffs; it runs nothing, so every finding is a hypothesis to check
+# against the code, not a verdict. Configured narrow on purpose: Biome already
+# handles formatting and lint, svelte-check handles types — CodeRabbit is here
+# for the defects a linter cannot see.
+#
+# The path instructions below restate rules that already live in CONVENTIONS.md
+# and AGENTS.md, so findings land on this project's actual contracts. If they
+# drift from those files, those files win.
+
+language: en-GB
+
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: false
+  poem: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+  # Generated, vendored or lock content: no value in reviewing it.
+  path_filters:
+    - "!pnpm-lock.yaml"
+    - "!**/*.lock"
+    - "!src-tauri/target/**"
+    - "!build/**"
+    - "!.svelte-kit/**"
+    - "!src/lib/components/ui/**"
+
+  path_instructions:
+    - path: "src/lib/services/**"
+      instructions: >-
+        This is the trust boundary. External data — engine CLI output, daemon HTTP
+        responses, IPC payloads — starts as `unknown` and is validated with Valibot
+        before it is treated as a domain type. Flag any external value used as a model,
+        progress event or response without passing a schema; any `as` cast or
+        non-null assertion standing in for validation; any parse failure swallowed or
+        turned into a default value rather than surfaced; and any fabricated result —
+        a placeholder model, a fake progress figure, an invented capability — where the
+        engine has not answered. Studio reaches the engine only through its public CLI
+        and serving daemon: flag any import of engine internals or any logic that
+        duplicates what the engine owns.
+    - path: "src/lib/states/**"
+      instructions: >-
+        Reactive resource classes in `.svelte.ts`. Flag state that outlives its owner
+        without cleanup, subscriptions or polling never torn down, and derived values
+        recomputed by hand where `$derived` belongs. Flag any version, path or
+        capability hardcoded here instead of read from its source of truth.
+    - path: "src/routes/**"
+      instructions: >-
+        Routes orchestrate; they do not transport. Flag fetch, IPC or response parsing
+        done inline in a route or component instead of in a service. For Svelte 5, flag
+        newly introduced legacy syntax — `export let`, `on:` directives, slots, event
+        dispatchers — and props mutated instead of treated as read-only inputs.
+    - path: "**/*.{ts,svelte}"
+      instructions: >-
+        Flag any user-facing text that presents scaffolded or planned behaviour as
+        working, and any error path that hides a failure from the user instead of
+        reporting it.
+
+chat:
+  auto_reply: true
