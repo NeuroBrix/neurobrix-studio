@@ -1,5 +1,10 @@
 pub mod discovery;
 pub mod process;
+// Staged for #15: the transport is landed and tested ahead of its callers
+// (the daemon client and lifecycle, later phases of the same issue). This
+// allow is per-module and comes off when the client module calls into it.
+#[allow(dead_code)]
+pub mod transport;
 pub mod version;
 
 use serde::Serialize;

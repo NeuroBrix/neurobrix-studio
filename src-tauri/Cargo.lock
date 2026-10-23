@@ -2277,6 +2277,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-wdio",
  "tauri-plugin-wdio-webdriver",
+ "tokio",
  "which",
 ]
 
@@ -4065,6 +4066,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",
