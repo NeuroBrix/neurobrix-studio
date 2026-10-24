@@ -26,7 +26,9 @@ pub fn discover(locator: &dyn EngineLocator, runner: &dyn ProcessRunner) -> Engi
         return EngineAvailability::Absent;
     };
 
-    let outcome = match runner.run(&executable, DISCOVERY_ARGS, DISCOVERY_TIMEOUT) {
+    // The availability probe never names an instance: it reads the
+    // installed engine itself, not a particular daemon instance.
+    let outcome = match runner.run(&executable, DISCOVERY_ARGS, &[], DISCOVERY_TIMEOUT) {
         Ok(outcome) => outcome,
         Err(ProcessFailure::Spawn(message)) => {
             return EngineAvailability::Unavailable {
@@ -140,20 +142,32 @@ mod tests {
         }
     }
 
+    /// What the fake recorded: the program it was asked to run, its
+    /// arguments, and the environment pairs it was asked to set. Named
+    /// fields, not tuple positions — call sites assert what they mean.
+    #[derive(Clone, Default)]
+    struct RecordedCall {
+        program: Option<PathBuf>,
+        args: Vec<String>,
+        env: Vec<(String, String)>,
+    }
+
     struct FakeRunner {
         outcome: Result<ProcessOutcome, ProcessFailure>,
-        seen: Mutex<(Option<PathBuf>, Vec<String>)>,
+        seen: Mutex<RecordedCall>,
     }
     impl ProcessRunner for FakeRunner {
         fn run(
             &self,
             program: &Path,
             args: &[&str],
+            env: &[(String, String)],
             _timeout: Duration,
         ) -> Result<ProcessOutcome, ProcessFailure> {
             let mut seen = self.seen.lock().expect("fake runner lock");
-            seen.0 = Some(program.to_owned());
-            seen.1 = args.iter().map(|a| a.to_string()).collect();
+            seen.program = Some(program.to_owned());
+            seen.args = args.iter().map(|a| a.to_string()).collect();
+            seen.env = env.to_vec();
             self.outcome.clone()
         }
     }
@@ -161,7 +175,7 @@ mod tests {
     fn runner_with(outcome: Result<ProcessOutcome, ProcessFailure>) -> FakeRunner {
         FakeRunner {
             outcome,
-            seen: Mutex::new((None, Vec::new())),
+            seen: Mutex::new(RecordedCall::default()),
         }
     }
 
@@ -203,7 +217,12 @@ mod tests {
         let result = discover(&FixedLocator(None), &runner);
         assert!(matches!(result, EngineAvailability::Absent));
         // The probe must never run when nothing was found.
-        assert!(runner.seen.lock().expect("fake runner lock").0.is_none());
+        assert!(runner
+            .seen
+            .lock()
+            .expect("fake runner lock")
+            .program
+            .is_none());
     }
 
     #[test]
@@ -211,8 +230,8 @@ mod tests {
         let runner = runner_with(ok(&info_record("0.5.4")));
         let result = discover(&FixedLocator(Some(EXECUTABLE.into())), &runner);
         assert!(matches!(result, EngineAvailability::Compatible { .. }));
-        let (program, _) = runner.seen.lock().expect("fake runner lock").clone();
-        assert_eq!(program.as_deref(), Some(Path::new(EXECUTABLE)));
+        let seen = runner.seen.lock().expect("fake runner lock").clone();
+        assert_eq!(seen.program.as_deref(), Some(Path::new(EXECUTABLE)));
     }
 
     #[test]
@@ -281,9 +300,12 @@ mod tests {
     fn uses_the_fixed_argument_array_with_no_shell_string() {
         let runner = runner_with(ok(&info_record("0.5.4")));
         discover(&FixedLocator(Some(EXECUTABLE.into())), &runner);
-        let (program, args) = runner.seen.lock().expect("fake runner lock").clone();
-        assert_eq!(program.as_deref(), Some(Path::new(EXECUTABLE)));
-        assert_eq!(args, vec!["info".to_owned(), "--json".to_owned()]);
+        let seen = runner.seen.lock().expect("fake runner lock").clone();
+        assert_eq!(seen.program.as_deref(), Some(Path::new(EXECUTABLE)));
+        assert_eq!(seen.args, vec!["info".to_owned(), "--json".to_owned()]);
+        // The availability probe must not name an engine instance —
+        // availability is about the installed engine, not a daemon.
+        assert!(seen.env.is_empty());
         for arg in DISCOVERY_ARGS {
             assert!(
                 !arg.chars()

@@ -29,6 +29,7 @@ pub trait ProcessRunner: Send + Sync {
         &self,
         program: &Path,
         args: &[&str],
+        env: &[(String, String)],
         timeout: Duration,
     ) -> Result<ProcessOutcome, ProcessFailure>;
 }
@@ -42,10 +43,15 @@ impl ProcessRunner for SystemProcessRunner {
         &self,
         program: &Path,
         args: &[&str],
+        env: &[(String, String)],
         timeout: Duration,
     ) -> Result<ProcessOutcome, ProcessFailure> {
         let mut child = Command::new(program)
             .args(args)
+            // The parent environment is inherited, never cleared — the
+            // engine resolves PATH and home the way an interactive call
+            // would. Explicit pairs name an instance (NBX_SOCKET_PATH).
+            .envs(env.iter().cloned())
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -142,6 +148,7 @@ mod tests {
         match SystemProcessRunner.run(
             Path::new("sh"),
             &["-c", "sleep 2 & exit 0"],
+            &[],
             Duration::from_millis(500),
         ) {
             Err(ProcessFailure::Timeout { .. }) => {}
