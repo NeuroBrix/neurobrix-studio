@@ -1,24 +1,10 @@
-use serde::Deserialize;
-
+use super::info::{parse_info, InfoError};
 use super::process::{EngineLocator, ProcessFailure, ProcessRunner};
 use super::version::{check_supported, VersionCheck, VersionError, SUPPORTED_ENGINE_RANGE};
 use super::{EngineAvailability, DISCOVERY_ARGS, DISCOVERY_TIMEOUT};
 
 pub const EXECUTABLE_NAME: &str = "neurobrix";
-const INFO_SCHEMA: &str = "neurobrix.info/1";
 const DIAGNOSTIC_LIMIT: usize = 400;
-
-/// Engine→Rust contract for `info --json`. Unknown fields ignored;
-/// `protocol`/`operations` absent means "not supplied"
-#[derive(Deserialize)]
-struct InfoRecord {
-    schema: String,
-    /// Envelope key on every record; preferred over the info-only `version` key.
-    engine: String,
-    protocol: Option<u32>,
-    /// Dispatcher method names, surfaced as `capabilities`.
-    operations: Option<Vec<String>>,
-}
 
 /// Read-only probe; every failure maps to a typed availability state.
 pub fn discover(locator: &dyn EngineLocator, runner: &dyn ProcessRunner) -> EngineAvailability {
@@ -67,26 +53,25 @@ pub fn discover(locator: &dyn EngineLocator, runner: &dyn ProcessRunner) -> Engi
         };
     }
 
-    let record: InfoRecord = match serde_json::from_str(&outcome.stdout) {
+    let record = match parse_info(&outcome.stdout) {
         Ok(record) => record,
-        Err(error) => {
+        Err(InfoError::InvalidJson(detail)) => {
             return EngineAvailability::ContractFailure {
                 reason: "The engine's status response was not valid JSON.".into(),
-                diagnostics: Some(excerpt(&error.to_string())),
+                diagnostics: Some(excerpt(&detail)),
+            };
+        }
+        Err(InfoError::UnsupportedSchema(schema)) => {
+            return EngineAvailability::ContractFailure {
+                reason: format!(
+                    "The engine reported status schema '{}', which this version of \
+                     Studio does not understand.",
+                    excerpt(&schema)
+                ),
+                diagnostics: None,
             };
         }
     };
-
-    if record.schema != INFO_SCHEMA {
-        return EngineAvailability::ContractFailure {
-            reason: format!(
-                "The engine reported status schema '{}', which this version of \
-                 Studio does not understand.",
-                excerpt(&record.schema)
-            ),
-            diagnostics: None,
-        };
-    }
 
     match check_supported(&record.engine) {
         Ok(VersionCheck::Compatible) => EngineAvailability::Compatible {

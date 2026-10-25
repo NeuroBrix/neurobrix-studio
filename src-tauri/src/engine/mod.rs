@@ -1,4 +1,11 @@
 pub mod discovery;
+// Staged for #15: the endpoint types are landed and tested ahead of the
+// daemon client (which resolves and dials these addresses) and the daemon
+// manager (which names the instance). The record type itself is live
+// through the shared info contract; the allow comes off with the client.
+#[allow(dead_code)]
+pub mod endpoint;
+pub mod info;
 pub mod process;
 // Staged for #15: the transport is landed and tested ahead of its callers
 // (the daemon client and lifecycle, later phases of the same issue). This
