@@ -281,78 +281,15 @@ fn validate_identity(record: &StatusRecord) -> Result<(), DaemonCallError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Mutex};
+    use crate::engine::testing::{
+        dead_endpoint, dialable, envelope_with, fake_daemon, status_body, test_timeouts,
+    };
     use std::time::Duration;
-
-    /// Loopback and in-memory sockets are fast; the budget only bounds a
-    /// wedged fake.
-    fn timeouts() -> TransportTimeouts {
-        TransportTimeouts {
-            connect: Duration::from_secs(5),
-            read: Duration::from_secs(5),
-            write: Duration::from_secs(5),
-        }
-    }
-
-    /// The status body the engine's `get_status` + `daemon_identity`
-    /// produce (verified 0.5.4 record; paths redacted).
-    fn status_body() -> Value {
-        json!({
-            "engine": "0.5.4",
-            "protocol": 1,
-            "endpoint": {"kind": "tcp", "address": "127.0.0.1", "port": 19384},
-            "operations": [
-                "generate", "chat", "complete", "template",
-                "new_chat", "status", "shutdown"
-            ],
-            "model": "TinyLlama-1.1B-Chat-v1.0",
-            "hardware": "v100-32g",
-            "family": "llm",
-            "loaded": true,
-            "mode": "compiled",
-            "warm_serving": true
-        })
-    }
-
-    fn envelope_with(result: Value) -> Value {
-        json!({"protocol": 1, "engine": "0.5.4", "result": result})
-    }
-
-    /// A one-connection fake daemon: accepts, reads one request frame,
-    /// answers one canned frame, and records what arrived. A test fixture
-    /// standing in for the real daemon — never fabricated product
-    /// behavior.
-    async fn fake_daemon(answer: Value) -> (ConnectAddress, Arc<Mutex<Option<Value>>>) {
-        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-            .await
-            .expect("bind a loopback listener");
-        let bound = listener.local_addr().expect("the bound address");
-        let received = Arc::new(Mutex::new(None));
-        let recorded = Arc::clone(&received);
-        tokio::spawn(async move {
-            let Ok((mut socket, _)) = listener.accept().await else {
-                return;
-            };
-            let Ok(request) = transport::read_frame(&mut socket, Duration::from_secs(5)).await
-            else {
-                return;
-            };
-            *recorded.lock().expect("record lock") = Some(request);
-            let _ = transport::write_frame(&mut socket, &answer, Duration::from_secs(5)).await;
-        });
-        (
-            ConnectAddress::Tcp {
-                host: bound.ip(),
-                port: bound.port(),
-            },
-            received,
-        )
-    }
 
     #[tokio::test]
     async fn a_status_handshake_reads_the_identity_through_a_real_socket() {
-        let (address, received) = fake_daemon(envelope_with(status_body())).await;
-        let record = connect_and_read_status(&address, &timeouts())
+        let (endpoint, received) = fake_daemon(envelope_with(status_body())).await;
+        let record = connect_and_read_status(&dialable(&endpoint), &test_timeouts())
             .await
             .expect("a compliant daemon handshake succeeds");
         assert_eq!(record.model, "TinyLlama-1.1B-Chat-v1.0");
@@ -366,13 +303,13 @@ mod tests {
 
     #[tokio::test]
     async fn a_shutdown_request_reaches_the_engine_method() {
-        let (address, received) = fake_daemon(json!({
+        let (endpoint, received) = fake_daemon(json!({
             "protocol": 1,
             "engine": "0.5.4",
             "result": {"status": "ok"}
         }))
         .await;
-        request_shutdown(&address, &timeouts())
+        request_shutdown(&dialable(&endpoint), &test_timeouts())
             .await
             .expect("a confirmed shutdown result is accepted");
         let request = received.lock().expect("record lock").clone();
@@ -381,20 +318,8 @@ mod tests {
 
     #[tokio::test]
     async fn nothing_listening_is_a_normal_state_not_a_loud_failure() {
-        // Bind then drop: the port is free, nothing answers.
-        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-            .await
-            .expect("bind");
-        let bound = listener.local_addr().expect("address");
-        drop(listener);
-        let outcome = connect_and_read_status(
-            &ConnectAddress::Tcp {
-                host: bound.ip(),
-                port: bound.port(),
-            },
-            &timeouts(),
-        )
-        .await;
+        let outcome =
+            connect_and_read_status(&dialable(&dead_endpoint().await), &test_timeouts()).await;
         assert_eq!(
             outcome,
             Err(DaemonCallError::Transport(TransportError::NotListening))
@@ -403,13 +328,13 @@ mod tests {
 
     #[tokio::test]
     async fn a_daemon_error_answer_is_carried_verbatim() {
-        let (address, _) = fake_daemon(json!({
+        let (endpoint, _) = fake_daemon(json!({
             "protocol": 1,
             "engine": "0.5.4",
             "error": "Unknown method: status"
         }))
         .await;
-        let outcome = connect_and_read_status(&address, &timeouts()).await;
+        let outcome = connect_and_read_status(&dialable(&endpoint), &test_timeouts()).await;
         assert_eq!(
             outcome,
             Err(DaemonCallError::DaemonError(
@@ -420,8 +345,8 @@ mod tests {
 
     #[tokio::test]
     async fn an_answer_without_its_stamps_is_refused() {
-        let (address, _) = fake_daemon(json!({"result": status_body()})).await;
-        let outcome = connect_and_read_status(&address, &timeouts()).await;
+        let (endpoint, _) = fake_daemon(json!({"result": status_body()})).await;
+        let outcome = connect_and_read_status(&dialable(&endpoint), &test_timeouts()).await;
         assert_eq!(
             outcome,
             Err(DaemonCallError::Envelope(
@@ -434,8 +359,8 @@ mod tests {
     async fn an_identity_from_a_future_protocol_is_refused_with_the_number() {
         let mut body = status_body();
         body["protocol"] = json!(2);
-        let (address, _) = fake_daemon(envelope_with(body)).await;
-        match connect_and_read_status(&address, &timeouts()).await {
+        let (endpoint, _) = fake_daemon(envelope_with(body)).await;
+        match connect_and_read_status(&dialable(&endpoint), &test_timeouts()).await {
             Err(DaemonCallError::Contract(reason)) => {
                 assert!(reason.contains("protocol version 2"), "reason: {reason}");
             }
@@ -449,8 +374,8 @@ mod tests {
         body["engine"] = json!("0.7.0");
         // The envelope stamp stays inside the range; the record is what
         // disagrees — the record itself is validated, not just the envelope.
-        let (address, _) = fake_daemon(envelope_with(body)).await;
-        match connect_and_read_status(&address, &timeouts()).await {
+        let (endpoint, _) = fake_daemon(envelope_with(body)).await;
+        match connect_and_read_status(&dialable(&endpoint), &test_timeouts()).await {
             Err(DaemonCallError::Contract(reason)) => {
                 assert!(
                     reason.contains("0.7.0") && reason.contains("tested range"),
@@ -465,8 +390,8 @@ mod tests {
     async fn an_identity_missing_a_required_operation_is_refused() {
         let mut body = status_body();
         body["operations"] = json!(["generate", "chat", "status"]);
-        let (address, _) = fake_daemon(envelope_with(body)).await;
-        match connect_and_read_status(&address, &timeouts()).await {
+        let (endpoint, _) = fake_daemon(envelope_with(body)).await;
+        match connect_and_read_status(&dialable(&endpoint), &test_timeouts()).await {
             Err(DaemonCallError::Contract(reason)) => {
                 assert!(reason.contains("shutdown"), "reason: {reason}");
             }
@@ -478,13 +403,13 @@ mod tests {
     async fn the_stamps_and_the_identity_must_name_the_same_engine() {
         let mut body = status_body();
         body["engine"] = json!("0.5.5"); // the record says 0.5.5...
-        let (address, _) = fake_daemon(json!({
+        let (endpoint, _) = fake_daemon(json!({
             "protocol": 1,
             "engine": "0.5.4", // ...while the stamps say 0.5.4
             "result": body
         }))
         .await;
-        match connect_and_read_status(&address, &timeouts()).await {
+        match connect_and_read_status(&dialable(&endpoint), &test_timeouts()).await {
             Err(DaemonCallError::Contract(reason)) => {
                 assert!(
                     reason.contains("0.5.4") && reason.contains("0.5.5"),
@@ -565,7 +490,7 @@ mod tests {
             }
         });
 
-        let record = connect_and_read_status(&ConnectAddress::Unix(path.clone()), &timeouts())
+        let record = connect_and_read_status(&ConnectAddress::Unix(path.clone()), &test_timeouts())
             .await
             .expect("the unix transport reaches the same handshake");
         assert_eq!(record.model, "TinyLlama-1.1B-Chat-v1.0");

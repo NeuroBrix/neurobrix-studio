@@ -55,6 +55,19 @@ impl StudioInstance {
             .expect("an instance path always has a parent");
         std::fs::create_dir_all(parent)
     }
+
+    /// The files this instance's daemon leaves behind: the socket (Unix),
+    /// the pid, and a named Windows instance's port file — mirroring the
+    /// engine's `Instance.instance_files()` rule, where the stem's
+    /// extensions become `.pid` and `.port`. The log persists by the
+    /// engine's own design and is not Studio's to clean.
+    pub fn instance_files(&self) -> Vec<PathBuf> {
+        vec![
+            self.socket_path.clone(),
+            self.socket_path.with_extension("pid"),
+            self.socket_path.with_extension("port"),
+        ]
+    }
 }
 
 /// The endpoint record exactly as the engine reports it (protocol.py
@@ -92,6 +105,21 @@ pub enum ResolveError {
     /// guessed around.
     UnusablePortFile(String),
 }
+
+impl std::fmt::Display for ResolveError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ResolveError::NoDaemon => {
+                write!(f, "no daemon is running on this instance")
+            }
+            ResolveError::UnusablePortFile(path) => {
+                write!(f, "the instance's port file ({path}) names no usable port")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ResolveError {}
 
 impl EndpointRecord {
     /// Resolve to a dialable address, mirroring the engine's
@@ -267,6 +295,24 @@ mod tests {
         let instance = StudioInstance::under(&dir);
         instance.ensure_directory().expect("directory created");
         assert!(dir.join("engine").exists());
+    }
+
+    #[test]
+    fn the_instance_names_its_daemons_files_by_the_engine_rule() {
+        // The engine derives the pid and port files from the socket stem
+        // (`Instance.instance_files()`); Studio reads the same rule to
+        // confirm cleanup after a stop.
+        let dir = Path::new("/data");
+        let instance = StudioInstance::under(dir);
+        let socket = dir.join("engine").join("daemon.sock");
+        assert_eq!(
+            instance.instance_files(),
+            vec![
+                socket.clone(),
+                socket.with_extension("pid"),
+                socket.with_extension("port"),
+            ]
+        );
     }
 
     fn temp_port_file(name: &str, contents: &str) -> PathBuf {

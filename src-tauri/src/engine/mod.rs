@@ -5,14 +5,21 @@
 #[allow(dead_code)]
 pub mod client;
 pub mod discovery;
-// Staged for #15: the client dials the resolved addresses and the record
-// type is live through the shared info contract. Naming the Studio
-// instance and resolving endpoints from the info record wait for the
-// daemon manager; the allow comes off with it.
+// Staged for #15: the client dials the resolved addresses and the
+// lifecycle resolves them per attempt; the record type is live through
+// the shared info contract. Naming the Studio instance and its derived
+// daemon files wait for the daemon manager; the allow comes off with it.
 #[allow(dead_code)]
 pub mod endpoint;
 pub mod info;
+// Staged for #15: the lifecycle — owned child, readiness, confirmed stop,
+// death classification — is landed and tested ahead of the daemon
+// manager that drives it. The allow comes off with that manager.
+#[allow(dead_code)]
+pub mod lifecycle;
 pub mod process;
+#[cfg(test)]
+pub(crate) mod testing;
 pub mod transport;
 pub mod version;
 
