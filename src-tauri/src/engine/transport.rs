@@ -21,6 +21,9 @@ const HEADER_SIZE: usize = 4;
 pub const SUPPORTED_PROTOCOL_VERSION: u64 = 1;
 
 /// Bounded I/O so a silent daemon fails as a timeout, never a hang.
+/// Constructed by the daemon manager's configuration when that lands
+/// (#15); the allow comes off with it.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub struct TransportTimeouts {
     pub connect: Duration,
@@ -216,6 +219,68 @@ pub fn validate_envelope(mut value: Value) -> Result<Envelope, EnvelopeError> {
         body,
     })
 }
+
+impl std::fmt::Display for TransportError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TransportError::NotListening => {
+                write!(f, "nothing is listening at the endpoint")
+            }
+            TransportError::Connect(reason) => write!(f, "could not connect: {reason}"),
+            TransportError::Io(reason) => write!(f, "the socket I/O failed: {reason}"),
+            TransportError::Timeout { operation } => {
+                write!(f, "the {operation} did not finish within its deadline")
+            }
+            TransportError::Closed => {
+                write!(f, "the daemon closed the connection before replying")
+            }
+            TransportError::TruncatedFrame => {
+                write!(f, "the daemon's reply frame was cut short")
+            }
+            TransportError::MessageTooLarge { declared } => write!(
+                f,
+                "the declared frame length ({declared} bytes) is over the 64 MiB cap"
+            ),
+            TransportError::InvalidUtf8 => write!(f, "the reply payload is not valid UTF-8"),
+            TransportError::InvalidJson(reason) => {
+                write!(f, "the reply payload is not valid JSON: {reason}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for TransportError {}
+
+impl std::fmt::Display for EnvelopeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EnvelopeError::MissingStamps => {
+                write!(f, "the response is missing its protocol or engine stamp")
+            }
+            EnvelopeError::UnknownProtocol(version) => write!(
+                f,
+                "the response speaks protocol version {version}, which this version \
+                 of Studio does not understand (it speaks version {SUPPORTED_PROTOCOL_VERSION})"
+            ),
+            EnvelopeError::EngineOutsideTestedRange(version) => write!(
+                f,
+                "the response reports engine version {version}, outside the \
+                 tested range"
+            ),
+            EnvelopeError::MalformedEngineVersion(version) => write!(
+                f,
+                "the response reports an engine version that is not valid \
+                 SemVer: '{version}'"
+            ),
+            EnvelopeError::UnexpectedVariant => write!(
+                f,
+                "the response carries both or neither of result and error"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for EnvelopeError {}
 
 #[cfg(test)]
 mod tests {

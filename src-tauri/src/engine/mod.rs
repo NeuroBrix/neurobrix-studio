@@ -1,16 +1,18 @@
+// Staged for #15: the daemon client — connect, handshake, status and
+// shutdown — is landed and tested against fake in-process daemons ahead
+// of the lifecycle that owns and stops a real one (the next phase). The
+// allow comes off when the lifecycle calls into it.
+#[allow(dead_code)]
+pub mod client;
 pub mod discovery;
-// Staged for #15: the endpoint types are landed and tested ahead of the
-// daemon client (which resolves and dials these addresses) and the daemon
-// manager (which names the instance). The record type itself is live
-// through the shared info contract; the allow comes off with the client.
+// Staged for #15: the client dials the resolved addresses and the record
+// type is live through the shared info contract. Naming the Studio
+// instance and resolving endpoints from the info record wait for the
+// daemon manager; the allow comes off with it.
 #[allow(dead_code)]
 pub mod endpoint;
 pub mod info;
 pub mod process;
-// Staged for #15: the transport is landed and tested ahead of its callers
-// (the daemon client and lifecycle, later phases of the same issue). This
-// allow is per-module and comes off when the client module calls into it.
-#[allow(dead_code)]
 pub mod transport;
 pub mod version;
 
