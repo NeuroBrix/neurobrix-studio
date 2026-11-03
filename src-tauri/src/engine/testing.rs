@@ -78,6 +78,41 @@ pub(crate) async fn fake_daemon(answer: Value) -> (EndpointRecord, Arc<Mutex<Opt
     )
 }
 
+/// A many-connection fake daemon on a real loopback socket: every
+/// connection is read one frame and answered one canned frame, and every
+/// request is recorded. For manager flows that connect repeatedly
+/// (probe, readiness, reads).
+pub(crate) async fn persistent_fake_daemon(
+    answer: Value,
+) -> (EndpointRecord, Arc<Mutex<Vec<Value>>>) {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("bind a loopback listener");
+    let bound = listener.local_addr().expect("the bound address");
+    let received = Arc::new(Mutex::new(Vec::new()));
+    let recorded = Arc::clone(&received);
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut socket, _)) = listener.accept().await else {
+                return;
+            };
+            let Ok(request) = transport::read_frame(&mut socket, TEST_IO).await else {
+                continue;
+            };
+            recorded.lock().expect("record lock").push(request);
+            let _ = transport::write_frame(&mut socket, &answer, TEST_IO).await;
+        }
+    });
+    (
+        EndpointRecord::Tcp {
+            address: bound.ip(),
+            port: Some(bound.port()),
+            port_file: None,
+        },
+        received,
+    )
+}
+
 /// The dialable address of a record the tests control.
 pub(crate) fn dialable(record: &EndpointRecord) -> ConnectAddress {
     record.resolve().expect("the fixture's endpoint resolves")

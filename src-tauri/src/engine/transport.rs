@@ -21,9 +21,6 @@ const HEADER_SIZE: usize = 4;
 pub const SUPPORTED_PROTOCOL_VERSION: u64 = 1;
 
 /// Bounded I/O so a silent daemon fails as a timeout, never a hang.
-/// Constructed by the daemon manager's configuration when that lands
-/// (#15); the allow comes off with it.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub struct TransportTimeouts {
     pub connect: Duration,

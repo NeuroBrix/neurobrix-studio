@@ -1,10 +1,9 @@
 use super::info::{parse_info, InfoError};
 use super::process::{EngineLocator, ProcessFailure, ProcessRunner};
 use super::version::{check_supported, VersionCheck, VersionError, SUPPORTED_ENGINE_RANGE};
-use super::{EngineAvailability, DISCOVERY_ARGS, DISCOVERY_TIMEOUT};
+use super::{excerpt, non_empty_excerpt, EngineAvailability, DISCOVERY_ARGS, DISCOVERY_TIMEOUT};
 
 pub const EXECUTABLE_NAME: &str = "neurobrix";
-const DIAGNOSTIC_LIMIT: usize = 400;
 
 /// Read-only probe; every failure maps to a typed availability state.
 pub fn discover(locator: &dyn EngineLocator, runner: &dyn ProcessRunner) -> EngineAvailability {
@@ -93,27 +92,11 @@ pub fn discover(locator: &dyn EngineLocator, runner: &dyn ProcessRunner) -> Engi
     }
 }
 
-fn excerpt(text: &str) -> String {
-    if text.chars().count() <= DIAGNOSTIC_LIMIT {
-        return text.to_owned();
-    }
-    let cut: String = text.chars().take(DIAGNOSTIC_LIMIT).collect();
-    format!("{cut}…")
-}
-
-fn non_empty_excerpt(text: &str) -> Option<String> {
-    let trimmed = text.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(excerpt(trimmed))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::engine::process::{EngineLocator, ProcessFailure, ProcessOutcome, ProcessRunner};
+    use crate::engine::DIAGNOSTIC_LIMIT;
     use std::path::{Path, PathBuf};
     use std::sync::Mutex;
     use std::time::Duration;

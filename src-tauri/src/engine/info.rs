@@ -26,9 +26,6 @@ pub struct InfoRecord {
     pub operations: Option<Vec<String>>,
     /// Where this instance's daemon listens, exactly as the engine reports
     /// it (protocol.py `Instance.endpoint()`); never recomputed by Studio.
-    /// Read by the daemon work when it resolves the instance to dial (#15);
-    /// the allow comes off with that reader.
-    #[allow(dead_code)]
     pub endpoint: Option<EndpointRecord>,
 }
 

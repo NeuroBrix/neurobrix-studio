@@ -1,21 +1,8 @@
-// Staged for #15: the daemon client — connect, handshake, status and
-// shutdown — is landed and tested against fake in-process daemons ahead
-// of the lifecycle that owns and stops a real one (the next phase). The
-// allow comes off when the lifecycle calls into it.
-#[allow(dead_code)]
 pub mod client;
+pub mod daemon;
 pub mod discovery;
-// Staged for #15: the client dials the resolved addresses and the
-// lifecycle resolves them per attempt; the record type is live through
-// the shared info contract. Naming the Studio instance and its derived
-// daemon files wait for the daemon manager; the allow comes off with it.
-#[allow(dead_code)]
 pub mod endpoint;
 pub mod info;
-// Staged for #15: the lifecycle — owned child, readiness, confirmed stop,
-// death classification — is landed and tested ahead of the daemon
-// manager that drives it. The allow comes off with that manager.
-#[allow(dead_code)]
 pub mod lifecycle;
 pub mod process;
 #[cfg(test)]
@@ -57,11 +44,36 @@ pub enum EngineAvailability {
 }
 
 /// Fixed probe, argument array only — never a shell string. Shipped
-/// contract: `neurobrix info --json` (schema `neurobrix.info/1`).
+/// contract: `neurobrix info --json` (schema `neurobrix.info/1`). The
+/// daemon work runs the SAME probe with the Studio-named instance in the
+/// environment, to read the endpoint it must dial.
 pub const DISCOVERY_ARGS: &[&str] = &["info", "--json"];
 /// Bounded so a wedged engine cannot hang the await; generous because
 /// `info --json` imports the compute stack, slow when installed.
 pub const DISCOVERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// Diagnostics excerpts are bounded: the last thing the engine said,
+/// never an unbounded dump.
+pub(crate) const DIAGNOSTIC_LIMIT: usize = 400;
+
+/// Bound a diagnostic to `DIAGNOSTIC_LIMIT` characters.
+pub(crate) fn excerpt(text: &str) -> String {
+    if text.chars().count() <= DIAGNOSTIC_LIMIT {
+        return text.to_owned();
+    }
+    let cut: String = text.chars().take(DIAGNOSTIC_LIMIT).collect();
+    format!("{cut}…")
+}
+
+/// `None` when there is nothing worth excerpting.
+pub(crate) fn non_empty_excerpt(text: &str) -> Option<String> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(excerpt(trimmed))
+    }
+}
 
 /// Real wiring for the Tauri command; tests call `discovery::discover` with fakes.
 pub fn discover() -> EngineAvailability {

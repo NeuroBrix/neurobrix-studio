@@ -9,10 +9,9 @@
 //! Studio names its own under its application cache directory instead of
 //! sharing the user's default instance.
 
+use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
-
-use serde::Deserialize;
 
 /// The env key that names an engine instance on every platform
 /// (protocol.py `Instance`).
@@ -72,7 +71,9 @@ impl StudioInstance {
 
 /// The endpoint record exactly as the engine reports it (protocol.py
 /// `Instance.endpoint()`): tagged by `kind`, never assembled by Studio.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+/// Serialization lets tests embed the record in the info fixtures they
+/// serve; the frontend never receives it directly.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum EndpointRecord {
     Unix {

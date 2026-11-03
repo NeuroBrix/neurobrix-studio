@@ -73,7 +73,6 @@ pub struct ExitSummary {
 /// purpose: the flows poll with async sleeps, so no method ever blocks
 /// and the trait stays object-safe for the fakes.
 pub trait OwnedChild: Send {
-    fn pid(&self) -> u32;
     /// Non-blocking reap; `None` while the child is alive.
     fn try_wait(&mut self) -> Option<ExitSummary>;
     /// The bounded output tails so far, `(stdout, stderr)`, without reaping.
@@ -86,16 +85,11 @@ pub trait OwnedChild: Send {
 /// behaviour is a documented follow-up of its own.
 struct TokioOwnedChild {
     child: Child,
-    pid: u32,
     stdout_tail: Arc<Mutex<String>>,
     stderr_tail: Arc<Mutex<String>>,
 }
 
 impl OwnedChild for TokioOwnedChild {
-    fn pid(&self) -> u32 {
-        self.pid
-    }
-
     fn try_wait(&mut self) -> Option<ExitSummary> {
         match self.child.try_wait() {
             Ok(Some(status)) => Some(ExitSummary {
@@ -149,12 +143,10 @@ impl DaemonSpawner for SystemDaemonSpawner {
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|error| error.to_string())?;
-        let pid = child.id().expect("a spawned child has a pid");
         let stdout_tail = spawn_drain(child.stdout.take().expect("stdout piped"));
         let stderr_tail = spawn_drain(child.stderr.take().expect("stderr piped"));
         Ok(Box::new(TokioOwnedChild {
             child,
-            pid,
             stdout_tail,
             stderr_tail,
         }))
@@ -426,9 +418,6 @@ mod tests {
     }
 
     impl OwnedChild for FakeChild {
-        fn pid(&self) -> u32 {
-            4242
-        }
         fn try_wait(&mut self) -> Option<ExitSummary> {
             if self.exit_after_polls > 0 {
                 self.exit_after_polls -= 1;
@@ -764,7 +753,6 @@ mod tests {
                 &[],
             )
             .expect("spawn a real test child");
-        assert!(child.pid() > 0);
         let exit = reap_with_deadline(child.as_mut()).expect("the test child exits");
         assert_eq!(exit.code, Some(7));
         assert!(
