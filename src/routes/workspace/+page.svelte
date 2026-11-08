@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DaemonPanel from "#lib/components/daemon-panel.svelte";
   import EngineStatus from "#lib/components/engine-status.svelte";
   import { engineDependencyKey } from "#lib/services/engine-discovery.js";
   import { invalidate } from "$app/navigation";
@@ -16,3 +17,5 @@
 {:then availability}
   <EngineStatus {availability} {refresh} />
 {/await}
+
+<DaemonPanel />

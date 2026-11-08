@@ -1,5 +1,13 @@
+pub mod client;
+pub mod daemon;
 pub mod discovery;
+pub mod endpoint;
+pub mod info;
+pub mod lifecycle;
 pub mod process;
+#[cfg(test)]
+pub(crate) mod testing;
+pub mod transport;
 pub mod version;
 
 use serde::Serialize;
@@ -36,11 +44,39 @@ pub enum EngineAvailability {
 }
 
 /// Fixed probe, argument array only — never a shell string. Shipped
-/// contract: `neurobrix info --json` (schema `neurobrix.info/1`).
+/// contract: `neurobrix info --json` (schema `neurobrix.info/2`). The
+/// daemon work runs the SAME probe with the Studio-named instance in the
+/// environment, to read the endpoint it must dial.
 pub const DISCOVERY_ARGS: &[&str] = &["info", "--json"];
-/// Bounded so a wedged engine cannot hang the await; generous because
-/// `info --json` imports the compute stack, slow when installed.
+/// Bounded so a wedged engine cannot hang the await. Since 0.6.x the
+/// probe imports no framework at all — it reads the engine's own
+/// hardware detection and the package metadata, so it answers in the
+/// time of the OS probes; the budget covers a cold interpreter start on
+/// a slow machine.
 pub const DISCOVERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// Diagnostics excerpts are bounded: the last thing the engine said,
+/// never an unbounded dump.
+pub(crate) const DIAGNOSTIC_LIMIT: usize = 400;
+
+/// Bound a diagnostic to `DIAGNOSTIC_LIMIT` characters.
+pub(crate) fn excerpt(text: &str) -> String {
+    if text.chars().count() <= DIAGNOSTIC_LIMIT {
+        return text.to_owned();
+    }
+    let cut: String = text.chars().take(DIAGNOSTIC_LIMIT).collect();
+    format!("{cut}…")
+}
+
+/// `None` when there is nothing worth excerpting.
+pub(crate) fn non_empty_excerpt(text: &str) -> Option<String> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(excerpt(trimmed))
+    }
+}
 
 /// Real wiring for the Tauri command; tests call `discovery::discover` with fakes.
 pub fn discover() -> EngineAvailability {

@@ -1,24 +1,9 @@
-use serde::Deserialize;
-
+use super::info::{parse_info, InfoError};
 use super::process::{EngineLocator, ProcessFailure, ProcessRunner};
 use super::version::{check_supported, VersionCheck, VersionError, SUPPORTED_ENGINE_RANGE};
-use super::{EngineAvailability, DISCOVERY_ARGS, DISCOVERY_TIMEOUT};
+use super::{excerpt, non_empty_excerpt, EngineAvailability, DISCOVERY_ARGS, DISCOVERY_TIMEOUT};
 
 pub const EXECUTABLE_NAME: &str = "neurobrix";
-const INFO_SCHEMA: &str = "neurobrix.info/1";
-const DIAGNOSTIC_LIMIT: usize = 400;
-
-/// Engine→Rust contract for `info --json`. Unknown fields ignored;
-/// `protocol`/`operations` absent means "not supplied"
-#[derive(Deserialize)]
-struct InfoRecord {
-    schema: String,
-    /// Envelope key on every record; preferred over the info-only `version` key.
-    engine: String,
-    protocol: Option<u32>,
-    /// Dispatcher method names, surfaced as `capabilities`.
-    operations: Option<Vec<String>>,
-}
 
 /// Read-only probe; every failure maps to a typed availability state.
 pub fn discover(locator: &dyn EngineLocator, runner: &dyn ProcessRunner) -> EngineAvailability {
@@ -26,7 +11,9 @@ pub fn discover(locator: &dyn EngineLocator, runner: &dyn ProcessRunner) -> Engi
         return EngineAvailability::Absent;
     };
 
-    let outcome = match runner.run(&executable, DISCOVERY_ARGS, DISCOVERY_TIMEOUT) {
+    // The availability probe never names an instance: it reads the
+    // installed engine itself, not a particular daemon instance.
+    let outcome = match runner.run(&executable, DISCOVERY_ARGS, &[], DISCOVERY_TIMEOUT) {
         Ok(outcome) => outcome,
         Err(ProcessFailure::Spawn(message)) => {
             return EngineAvailability::Unavailable {
@@ -65,26 +52,25 @@ pub fn discover(locator: &dyn EngineLocator, runner: &dyn ProcessRunner) -> Engi
         };
     }
 
-    let record: InfoRecord = match serde_json::from_str(&outcome.stdout) {
+    let record = match parse_info(&outcome.stdout) {
         Ok(record) => record,
-        Err(error) => {
+        Err(InfoError::InvalidJson(detail)) => {
             return EngineAvailability::ContractFailure {
                 reason: "The engine's status response was not valid JSON.".into(),
-                diagnostics: Some(excerpt(&error.to_string())),
+                diagnostics: Some(excerpt(&detail)),
+            };
+        }
+        Err(InfoError::UnsupportedSchema(schema)) => {
+            return EngineAvailability::ContractFailure {
+                reason: format!(
+                    "The engine reported status schema '{}', which this version of \
+                     Studio does not understand.",
+                    excerpt(&schema)
+                ),
+                diagnostics: None,
             };
         }
     };
-
-    if record.schema != INFO_SCHEMA {
-        return EngineAvailability::ContractFailure {
-            reason: format!(
-                "The engine reported status schema '{}', which this version of \
-                 Studio does not understand.",
-                excerpt(&record.schema)
-            ),
-            diagnostics: None,
-        };
-    }
 
     match check_supported(&record.engine) {
         Ok(VersionCheck::Compatible) => EngineAvailability::Compatible {
@@ -106,27 +92,11 @@ pub fn discover(locator: &dyn EngineLocator, runner: &dyn ProcessRunner) -> Engi
     }
 }
 
-fn excerpt(text: &str) -> String {
-    if text.chars().count() <= DIAGNOSTIC_LIMIT {
-        return text.to_owned();
-    }
-    let cut: String = text.chars().take(DIAGNOSTIC_LIMIT).collect();
-    format!("{cut}…")
-}
-
-fn non_empty_excerpt(text: &str) -> Option<String> {
-    let trimmed = text.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(excerpt(trimmed))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::engine::process::{EngineLocator, ProcessFailure, ProcessOutcome, ProcessRunner};
+    use crate::engine::DIAGNOSTIC_LIMIT;
     use std::path::{Path, PathBuf};
     use std::sync::Mutex;
     use std::time::Duration;
@@ -140,20 +110,32 @@ mod tests {
         }
     }
 
+    /// What the fake recorded: the program it was asked to run, its
+    /// arguments, and the environment pairs it was asked to set. Named
+    /// fields, not tuple positions — call sites assert what they mean.
+    #[derive(Clone, Default)]
+    struct RecordedCall {
+        program: Option<PathBuf>,
+        args: Vec<String>,
+        env: Vec<(String, String)>,
+    }
+
     struct FakeRunner {
         outcome: Result<ProcessOutcome, ProcessFailure>,
-        seen: Mutex<(Option<PathBuf>, Vec<String>)>,
+        seen: Mutex<RecordedCall>,
     }
     impl ProcessRunner for FakeRunner {
         fn run(
             &self,
             program: &Path,
             args: &[&str],
+            env: &[(String, String)],
             _timeout: Duration,
         ) -> Result<ProcessOutcome, ProcessFailure> {
             let mut seen = self.seen.lock().expect("fake runner lock");
-            seen.0 = Some(program.to_owned());
-            seen.1 = args.iter().map(|a| a.to_string()).collect();
+            seen.program = Some(program.to_owned());
+            seen.args = args.iter().map(|a| a.to_string()).collect();
+            seen.env = env.to_vec();
             self.outcome.clone()
         }
     }
@@ -161,7 +143,7 @@ mod tests {
     fn runner_with(outcome: Result<ProcessOutcome, ProcessFailure>) -> FakeRunner {
         FakeRunner {
             outcome,
-            seen: Mutex::new((None, Vec::new())),
+            seen: Mutex::new(RecordedCall::default()),
         }
     }
 
@@ -188,43 +170,50 @@ mod tests {
         })
     }
 
-    /// Verified 0.5.4 record (issue #9, paths redacted); unknown fields
-    /// kept to prove they are ignored. The interpreter key is omitted
-    /// because the guard bans that literal in this module.
+    /// Verified 0.6.2 record (paths redacted); unknown fields kept to prove
+    /// they are ignored. The schema-2 record carries the compute branches
+    /// and the detected devices where schema-1 carried `torch` and
+    /// `cuda_available` — Studio consumes neither. The interpreter key is
+    /// omitted because the guard bans that literal in this module.
     fn info_record(engine_version: &str) -> String {
         format!(
-            r#"{{"schema":"neurobrix.info/1","engine":"{engine_version}","version":"{engine_version}","package":"/src/neurobrix","cache":"/home/user/.neurobrix/cache","store":"/home/user/.neurobrix/store","models":[{{"name":"test-model","size_bytes":384061043}}],"hardware_profiles":["a100-80g","h100-80g"],"torch":null,"cuda_available":false,"gpus":[],"protocol":1,"endpoint":{{"kind":"unix","path":"/home/user/.neurobrix/daemon.sock"}},"operations":["generate","chat","complete","template","new_chat","status","shutdown"]}}"#
+            r#"{{"schema":"neurobrix.info/2","engine":"{engine_version}","version":"{engine_version}","package":"/src/neurobrix","cache":"/home/user/.neurobrix/cache","store":"/home/user/.neurobrix/store","models":[{{"name":"test-model","size_bytes":384061043}}],"hardware_profiles":["a100-80g","h100-80g"],"branches":{{"torch":null,"triton":null}},"gpus":[],"protocol":1,"protocol_range":[1,1],"endpoint":{{"kind":"unix","path":"/home/user/.neurobrix/daemon.sock"}},"operations":["generate","chat","complete","template","new_chat","status","cancel","shutdown"]}}"#
         )
     }
 
     #[test]
     fn absent_when_executable_is_not_found() {
-        let runner = runner_with(ok(&info_record("0.5.4")));
+        let runner = runner_with(ok(&info_record("0.6.2")));
         let result = discover(&FixedLocator(None), &runner);
         assert!(matches!(result, EngineAvailability::Absent));
         // The probe must never run when nothing was found.
-        assert!(runner.seen.lock().expect("fake runner lock").0.is_none());
+        assert!(runner
+            .seen
+            .lock()
+            .expect("fake runner lock")
+            .program
+            .is_none());
     }
 
     #[test]
     fn executable_found_runs_probe_on_located_path() {
-        let runner = runner_with(ok(&info_record("0.5.4")));
+        let runner = runner_with(ok(&info_record("0.6.2")));
         let result = discover(&FixedLocator(Some(EXECUTABLE.into())), &runner);
         assert!(matches!(result, EngineAvailability::Compatible { .. }));
-        let (program, _) = runner.seen.lock().expect("fake runner lock").clone();
-        assert_eq!(program.as_deref(), Some(Path::new(EXECUTABLE)));
+        let seen = runner.seen.lock().expect("fake runner lock").clone();
+        assert_eq!(seen.program.as_deref(), Some(Path::new(EXECUTABLE)));
     }
 
     #[test]
     fn compatible_version_passes_the_reported_payload_through() {
-        let result = discover_with(ok(&info_record("0.5.4")));
+        let result = discover_with(ok(&info_record("0.6.2")));
         match result {
             EngineAvailability::Compatible {
                 engine_version,
                 protocol_version,
                 capabilities,
             } => {
-                assert_eq!(engine_version, "0.5.4");
+                assert_eq!(engine_version, "0.6.2");
                 assert_eq!(protocol_version, Some("1".to_owned()));
                 assert_eq!(
                     capabilities,
@@ -235,6 +224,7 @@ mod tests {
                         "template".to_owned(),
                         "new_chat".to_owned(),
                         "status".to_owned(),
+                        "cancel".to_owned(),
                         "shutdown".to_owned(),
                     ])
                 );
@@ -259,9 +249,22 @@ mod tests {
     }
 
     #[test]
+    fn an_engine_answering_the_old_schema_is_refused_not_half_parsed() {
+        // 0.5.x answers `info/1`; the schema this build speaks is 2.
+        let old = info_record("0.6.2").replace("neurobrix.info/2", "neurobrix.info/1");
+        let result = discover_with(ok(&old));
+        match result {
+            EngineAvailability::ContractFailure { reason, .. } => {
+                assert!(reason.contains("neurobrix.info/1"), "reason: {reason}");
+            }
+            other => panic!("expected ContractFailure, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn missing_daemon_block_still_reports_compatible() {
         // Windows named instance, no port file: the daemon block becomes one key.
-        let record = r#"{"schema":"neurobrix.info/1","engine":"0.5.4","cache":"/home/user/.neurobrix/cache","store":"/home/user/.neurobrix/store","daemon":"unavailable (no port file)"}"#;
+        let record = r#"{"schema":"neurobrix.info/2","engine":"0.6.2","cache":"/home/user/.neurobrix/cache","store":"/home/user/.neurobrix/store","daemon":"unavailable (no port file)"}"#;
         let result = discover_with(ok(record));
         match result {
             EngineAvailability::Compatible {
@@ -269,7 +272,7 @@ mod tests {
                 protocol_version,
                 capabilities,
             } => {
-                assert_eq!(engine_version, "0.5.4");
+                assert_eq!(engine_version, "0.6.2");
                 assert_eq!(protocol_version, None);
                 assert_eq!(capabilities, None);
             }
@@ -279,11 +282,14 @@ mod tests {
 
     #[test]
     fn uses_the_fixed_argument_array_with_no_shell_string() {
-        let runner = runner_with(ok(&info_record("0.5.4")));
+        let runner = runner_with(ok(&info_record("0.6.2")));
         discover(&FixedLocator(Some(EXECUTABLE.into())), &runner);
-        let (program, args) = runner.seen.lock().expect("fake runner lock").clone();
-        assert_eq!(program.as_deref(), Some(Path::new(EXECUTABLE)));
-        assert_eq!(args, vec!["info".to_owned(), "--json".to_owned()]);
+        let seen = runner.seen.lock().expect("fake runner lock").clone();
+        assert_eq!(seen.program.as_deref(), Some(Path::new(EXECUTABLE)));
+        assert_eq!(seen.args, vec!["info".to_owned(), "--json".to_owned()]);
+        // The availability probe must not name an engine instance —
+        // availability is about the installed engine, not a daemon.
+        assert!(seen.env.is_empty());
         for arg in DISCOVERY_ARGS {
             assert!(
                 !arg.chars()
@@ -306,16 +312,16 @@ mod tests {
 
     #[test]
     fn contract_failure_for_missing_required_fields() {
-        let result = discover_with(ok(r#"{"schema":"neurobrix.info/1"}"#));
+        let result = discover_with(ok(r#"{"schema":"neurobrix.info/2"}"#));
         assert!(matches!(result, EngineAvailability::ContractFailure { .. }));
     }
 
     #[test]
     fn contract_failure_for_unsupported_schema() {
-        let result = discover_with(ok(r#"{"schema":"neurobrix.info/2","engine":"0.5.4"}"#));
+        let result = discover_with(ok(r#"{"schema":"neurobrix.info/3","engine":"0.6.2"}"#));
         match result {
             EngineAvailability::ContractFailure { reason, .. } => {
-                assert!(reason.contains("neurobrix.info/2"));
+                assert!(reason.contains("neurobrix.info/3"));
             }
             other => panic!("expected ContractFailure, got {other:?}"),
         }
@@ -324,7 +330,7 @@ mod tests {
     #[test]
     fn contract_failure_for_malformed_version() {
         let result = discover_with(ok(
-            r#"{"schema":"neurobrix.info/1","engine":"not.a.version"}"#,
+            r#"{"schema":"neurobrix.info/2","engine":"not.a.version"}"#,
         ));
         match result {
             EngineAvailability::ContractFailure { reason, .. } => {
