@@ -27,6 +27,12 @@ use super::transport::{TransportError, TransportTimeouts};
 use super::version::{check_supported, VersionCheck, SUPPORTED_ENGINE_RANGE};
 use super::{excerpt, non_empty_excerpt, DISCOVERY_ARGS, DISCOVERY_TIMEOUT};
 
+/// The operations Stage 2 invokes, validated against the method names the
+/// info record publishes. In 0.6.x the status result's `operations` key is
+/// the daemon's LIVE operations, not the method names — so this check
+/// belongs to the record that still carries them.
+const REQUIRED_OPERATIONS: &[&str] = &["status", "shutdown"];
+
 /// The manager's tunables. Defaults are Studio's own choices, documented
 /// beside each field; the engine's contracts set the scale.
 #[derive(Debug, Clone)]
@@ -94,7 +100,6 @@ pub enum DaemonStatus {
         warm_serving: bool,
         engine_version: String,
         protocol_version: u64,
-        operations: Vec<String>,
         /// From the serve invocation Studio issued.
         idle_timeout_secs: u64,
     },
@@ -110,7 +115,6 @@ pub enum DaemonStatus {
         warm_serving: bool,
         engine_version: String,
         protocol_version: u64,
-        operations: Vec<String>,
     },
     /// The owned daemon is gone. Expected (the idle timeout, with the
     /// invocation's timeout, or an external stop) and unexpected deaths
@@ -464,7 +468,6 @@ impl DaemonManager {
             warm_serving: record.warm_serving,
             engine_version: record.engine.clone(),
             protocol_version: record.protocol,
-            operations: record.operations.clone(),
             idle_timeout_secs,
         }
     }
@@ -793,6 +796,21 @@ impl DaemonManager {
                 });
             }
         }
+        // The method names the dispatcher answers live on the info record;
+        // the daemon work requires the ones it calls.
+        if let Some(operations) = &record.operations {
+            for required in REQUIRED_OPERATIONS {
+                if !operations.iter().any(|operation| operation == required) {
+                    return Err(ResolutionError::ContractFailure {
+                        reason: format!(
+                            "The engine's dispatcher does not answer the required \
+                             '{required}' operation."
+                        ),
+                        diagnostics: None,
+                    });
+                }
+            }
+        }
         let Some(endpoint) = record.endpoint else {
             return Err(ResolutionError::NoServingModule);
         };
@@ -817,7 +835,6 @@ fn external_status(record: &StatusRecord) -> DaemonStatus {
         warm_serving: record.warm_serving,
         engine_version: record.engine.clone(),
         protocol_version: record.protocol,
-        operations: record.operations.clone(),
     }
 }
 
@@ -916,15 +933,17 @@ mod tests {
     const MODEL: &str = "TinyLlama-1.1B-Chat-v1.0";
 
     /// The info record the fake engine serves, naming the endpoint the
-    /// tests control — the same record shape `info --json` produces.
+    /// tests control — the schema-2 record shape `info --json` produces
+    /// in 0.6.x, with the method names Studio's daemon work requires.
     fn info_stdout(endpoint: &EndpointRecord) -> String {
         serde_json::to_string(&json!({
-            "schema": "neurobrix.info/1",
-            "engine": "0.5.4",
+            "schema": "neurobrix.info/2",
+            "engine": "0.6.2",
             "protocol": 1,
+            "protocol_range": [1, 1],
             "operations": [
                 "generate", "chat", "complete", "template",
-                "new_chat", "status", "shutdown"
+                "new_chat", "status", "cancel", "shutdown"
             ],
             "endpoint": serde_json::to_value(endpoint).expect("the endpoint serializes"),
         }))
@@ -1195,6 +1214,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_dispatcher_missing_a_required_operation_is_a_contract_failure() {
+        // The method names live on the info record in 0.6.x; a dispatcher
+        // that cannot answer the ones Studio calls is refused by name.
+        let endpoint = dead_endpoint().await;
+        let stdout = serde_json::to_string(&json!({
+            "schema": "neurobrix.info/2",
+            "engine": "0.6.2",
+            "protocol": 1,
+            "protocol_range": [1, 1],
+            "operations": ["generate", "chat", "status"],
+            "endpoint": serde_json::to_value(&endpoint).expect("the endpoint serializes"),
+        }))
+        .expect("the info record serializes");
+        let manager = DaemonManager::with_dependencies(
+            &temp_dir(),
+            Arc::new(FixedLocator(Some(PathBuf::from(EXECUTABLE)))),
+            Arc::new(InfoRunner {
+                stdout,
+                recorded_env: Mutex::new(Vec::new()),
+            }),
+            always_alive_spawner(),
+            fast_config(),
+        );
+        match manager.read_status().await {
+            DaemonStatus::ContractFailure { reason, .. } => {
+                assert!(reason.contains("'shutdown'"), "reason: {reason}");
+            }
+            other => panic!("expected a contract failure, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
     async fn an_external_daemon_is_reported_with_its_identity_and_never_stopped() {
         let (endpoint, received) = persistent_fake_daemon(envelope_with(status_body())).await;
         let manager = manager_with(&temp_dir(), &endpoint, always_alive_spawner());
@@ -1206,7 +1257,7 @@ mod tests {
                 ..
             } => {
                 assert_eq!(model, MODEL);
-                assert_eq!(engine_version, "0.5.4");
+                assert_eq!(engine_version, "0.6.2");
                 assert!(loaded);
             }
             other => panic!("expected an external daemon, got {other:?}"),
@@ -1290,7 +1341,7 @@ mod tests {
                 ..
             } => {
                 assert_eq!(model, MODEL);
-                assert_eq!(engine_version, "0.5.4");
+                assert_eq!(engine_version, "0.6.2");
                 assert_eq!(protocol_version, 1);
                 assert_eq!(idle_timeout_secs, 1800);
             }
@@ -1336,7 +1387,7 @@ mod tests {
         let manager = manager_with(&temp_dir(), &endpoint, managed(&spawner));
         match manager.start(MODEL.to_owned()).await {
             Err(MutationFailure::Conflict { engine_version, .. }) => {
-                assert_eq!(engine_version.as_deref(), Some("0.5.4"));
+                assert_eq!(engine_version.as_deref(), Some("0.6.2"));
             }
             other => panic!("expected a conflict, got {other:?}"),
         }

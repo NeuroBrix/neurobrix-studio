@@ -2267,7 +2267,7 @@ dependencies = [
 
 [[package]]
 name = "neurobrix-studio"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "semver",
  "serde",

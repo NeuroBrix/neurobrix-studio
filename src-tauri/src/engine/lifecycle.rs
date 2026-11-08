@@ -454,7 +454,7 @@ mod tests {
     }
 
     fn shutdown_answer() -> serde_json::Value {
-        json!({"protocol": 1, "engine": "0.5.4", "result": {"status": "ok"}})
+        json!({"protocol": 1, "engine": "0.6.2", "result": {"status": "ok"}})
     }
 
     #[test]

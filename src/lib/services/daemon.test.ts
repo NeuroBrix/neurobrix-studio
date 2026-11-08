@@ -22,9 +22,8 @@ const serving = {
   loaded: true,
   mode: "compiled",
   warm_serving: true,
-  engine_version: "0.5.4",
+  engine_version: "0.6.2",
   protocol_version: 1,
-  operations: ["status", "shutdown"],
 };
 
 describe("daemonStatusSchema", () => {
@@ -77,7 +76,7 @@ describe("daemonStatusSchema", () => {
 
 describe("daemonMutationFailureSchema", () => {
   test.each([
-    ["conflict", { kind: "conflict", message: "already serving", engine_version: "0.5.4" }],
+    ["conflict", { kind: "conflict", message: "already serving", engine_version: "0.6.2" }],
     ["conflict without the identity", { kind: "conflict", message: "already running" }],
     ["duplicate submission", { kind: "duplicate_submission", message: "in progress" }],
     ["no owned daemon", { kind: "no_owned_daemon", message: "nothing owned" }],
@@ -162,7 +161,7 @@ describe("the mutation commands", () => {
 
   test("start propagates the structured failure for the caller to surface", async () => {
     native.isTauri.mockReturnValue(true);
-    const failure = { kind: "conflict", message: "already serving", engine_version: "0.5.4" };
+    const failure = { kind: "conflict", message: "already serving", engine_version: "0.6.2" };
     native.invoke.mockRejectedValue(failure);
     await expect(startOwnedDaemon("x")).rejects.toEqual(failure);
     expect(toMutationFailure(failure)).toEqual(failure);

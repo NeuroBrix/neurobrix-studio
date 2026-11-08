@@ -13,21 +13,24 @@ use super::endpoint::ConnectAddress;
 use super::transport::{self, EnvelopeBody, TransportError, TransportTimeouts};
 use super::version::{check_supported, VersionCheck, VersionError, SUPPORTED_ENGINE_RANGE};
 
-/// The operations Stage 2 invokes; validated by the handshake before any
-/// other operation is attempted.
-pub const REQUIRED_OPERATIONS: &[&str] = &["status", "shutdown"];
-
 /// The `status` result: the identity record merged with serving state
-/// (serving/engine.py `get_status` + `daemon_identity`). Optional extras
-/// (`strategy`, `vram_used_gb`, `context`) are ignored — Studio renders
-/// what is reported, nothing invented.
+/// (serving/engine.py `get_status` + `daemon_identity`). In 0.6.x the
+/// `operations` key is replaced by the daemon's LIVE operations — a
+/// list of running work records Studio does not model — so the method
+/// names the handshake checks come from `info --json`, not from here.
+/// Optional extras (`strategy`, `vram_used_gb`, `context`) are ignored —
+/// Studio renders what is reported, nothing invented.
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct StatusRecord {
     // -- identity (daemon_identity) --
     pub engine: String,
     pub protocol: u64,
+    /// The inclusive range of client protocol versions this daemon
+    /// serves (wire-protocol.md §5): a client outside it is refused by
+    /// the daemon at its first frame; Studio checks it first and says
+    /// so before the daemon has to.
+    pub protocol_range: [u64; 2],
     pub endpoint: super::endpoint::EndpointRecord,
-    pub operations: Vec<String>,
     // -- serving state (get_status) --
     pub model: String,
     pub hardware: String,
@@ -174,15 +177,22 @@ pub async fn connect(
     }
 }
 
-/// One request on one connection: write the request frame, read the
-/// response frame, validate the envelope's stamps — every time.
+/// One request on one connection: write the request frame stamped with
+/// the protocol this client speaks (wire-protocol.md §3), read the
+/// response frame, validate the envelope's stamps — every time. The
+/// response may carry an `op_id` on a work method; Stage 2 calls no
+/// work method, and the extra key is simply not one Studio reads.
 async fn call(
     stream: &mut DaemonStream,
     method: &str,
     params: Value,
     timeouts: &TransportTimeouts,
 ) -> Result<transport::Envelope, DaemonCallError> {
-    let request = json!({ "method": method, "params": params });
+    let request = json!({
+        "protocol": transport::SUPPORTED_PROTOCOL_VERSION,
+        "method": method,
+        "params": params,
+    });
     transport::write_frame(stream, &request, timeouts.write).await?;
     let response = transport::read_frame(stream, timeouts.read).await?;
     Ok(transport::validate_envelope(response)?)
@@ -234,16 +244,26 @@ pub async fn request_shutdown(
     }
 }
 
-/// Validate the identity record the handshake requires. The endpoint shape
-/// and every required field are enforced by deserializing into
-/// `StatusRecord`; the protocol and engine versions and the required
-/// operations are checked here.
+/// Validate the identity record the handshake requires. The endpoint
+/// shape and every required field are enforced by deserializing into
+/// `StatusRecord`; the protocol version and its served range and the
+/// engine version are checked here. The method names the handshake
+/// requires (`status`, `shutdown`) are checked on the info record they
+/// come from in 0.6.x — status carries the live operations instead.
 fn validate_identity(record: &StatusRecord) -> Result<(), DaemonCallError> {
     if record.protocol != transport::SUPPORTED_PROTOCOL_VERSION {
         return Err(DaemonCallError::Contract(format!(
             "the daemon reports protocol version {}, which this version of \
              Studio does not understand (it speaks version {})",
             record.protocol,
+            transport::SUPPORTED_PROTOCOL_VERSION
+        )));
+    }
+    let [low, high] = record.protocol_range;
+    if !(low..=high).contains(&transport::SUPPORTED_PROTOCOL_VERSION) {
+        return Err(DaemonCallError::Contract(format!(
+            "the daemon accepts protocol versions {low}..{high}; this version \
+             of Studio speaks {}, so it cannot talk to this daemon",
             transport::SUPPORTED_PROTOCOL_VERSION
         )));
     }
@@ -261,17 +281,6 @@ fn validate_identity(record: &StatusRecord) -> Result<(), DaemonCallError> {
                 "the daemon reports an engine version that is not valid \
                  SemVer: '{}'",
                 record.engine
-            )));
-        }
-    }
-    for required in REQUIRED_OPERATIONS {
-        if !record
-            .operations
-            .iter()
-            .any(|operation| operation == required)
-        {
-            return Err(DaemonCallError::Contract(format!(
-                "the daemon does not answer the required '{required}' operation"
             )));
         }
     }
@@ -293,19 +302,23 @@ mod tests {
             .await
             .expect("a compliant daemon handshake succeeds");
         assert_eq!(record.model, "TinyLlama-1.1B-Chat-v1.0");
-        assert_eq!(record.engine, "0.5.4");
+        assert_eq!(record.engine, "0.6.2");
         assert_eq!(record.protocol, 1);
         assert!(record.loaded);
-        // The handshake sent exactly one status request on that connection.
+        // The handshake sent exactly one status request on that
+        // connection, stamped with the protocol this client speaks.
         let request = received.lock().expect("record lock").clone();
-        assert_eq!(request, Some(json!({"method": "status", "params": {}})));
+        assert_eq!(
+            request,
+            Some(json!({"protocol": 1, "method": "status", "params": {}}))
+        );
     }
 
     #[tokio::test]
     async fn a_shutdown_request_reaches_the_engine_method() {
         let (endpoint, received) = fake_daemon(json!({
             "protocol": 1,
-            "engine": "0.5.4",
+            "engine": "0.6.2",
             "result": {"status": "ok"}
         }))
         .await;
@@ -313,7 +326,10 @@ mod tests {
             .await
             .expect("a confirmed shutdown result is accepted");
         let request = received.lock().expect("record lock").clone();
-        assert_eq!(request, Some(json!({"method": "shutdown", "params": {}})));
+        assert_eq!(
+            request,
+            Some(json!({"protocol": 1, "method": "shutdown", "params": {}}))
+        );
     }
 
     #[tokio::test]
@@ -330,7 +346,7 @@ mod tests {
     async fn a_daemon_error_answer_is_carried_verbatim() {
         let (endpoint, _) = fake_daemon(json!({
             "protocol": 1,
-            "engine": "0.5.4",
+            "engine": "0.6.2",
             "error": "Unknown method: status"
         }))
         .await;
@@ -369,6 +385,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_daemon_whose_range_excludes_studios_protocol_is_refused() {
+        let mut body = status_body();
+        body["protocol_range"] = json!([2, 3]);
+        let (endpoint, _) = fake_daemon(envelope_with(body)).await;
+        match connect_and_read_status(&dialable(&endpoint), &test_timeouts()).await {
+            Err(DaemonCallError::Contract(reason)) => {
+                assert!(
+                    reason.contains("accepts protocol versions 2..3"),
+                    "reason: {reason}"
+                );
+            }
+            other => panic!("expected a contract refusal, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
     async fn an_identity_from_an_untested_engine_is_refused() {
         let mut body = status_body();
         body["engine"] = json!("0.7.0");
@@ -387,32 +419,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_identity_missing_a_required_operation_is_refused() {
-        let mut body = status_body();
-        body["operations"] = json!(["generate", "chat", "status"]);
-        let (endpoint, _) = fake_daemon(envelope_with(body)).await;
-        match connect_and_read_status(&dialable(&endpoint), &test_timeouts()).await {
-            Err(DaemonCallError::Contract(reason)) => {
-                assert!(reason.contains("shutdown"), "reason: {reason}");
-            }
-            other => panic!("expected a contract refusal, got {other:?}"),
-        }
-    }
-
-    #[tokio::test]
     async fn the_stamps_and_the_identity_must_name_the_same_engine() {
         let mut body = status_body();
-        body["engine"] = json!("0.5.5"); // the record says 0.5.5...
+        body["engine"] = json!("0.6.1"); // the record says 0.6.1...
         let (endpoint, _) = fake_daemon(json!({
             "protocol": 1,
-            "engine": "0.5.4", // ...while the stamps say 0.5.4
+            "engine": "0.6.2", // ...while the stamps say 0.6.2
             "result": body
         }))
         .await;
         match connect_and_read_status(&dialable(&endpoint), &test_timeouts()).await {
             Err(DaemonCallError::Contract(reason)) => {
                 assert!(
-                    reason.contains("0.5.4") && reason.contains("0.5.5"),
+                    reason.contains("0.6.2") && reason.contains("0.6.1"),
                     "reason: {reason}"
                 );
             }
@@ -430,8 +449,7 @@ mod tests {
         assert!(record.loaded);
         assert_eq!(record.mode, "compiled");
         assert!(record.warm_serving);
-        assert!(record.operations.contains(&"status".to_owned()));
-        assert!(record.operations.contains(&"shutdown".to_owned()));
+        assert_eq!(record.protocol_range, [1, 1]);
     }
 
     #[test]

@@ -1,17 +1,21 @@
 # The engine daemon protocol Studio consumes
 
-Status: implemented in Studio issue [#15](https://github.com/NeuroBrix/neurobrix-studio/issues/15)
-against engine `0.5.4` (the floor of the tested range `>=0.5.4,<0.6`). The
-engine itself was not changed. The native checks at the end say exactly
-what was verified and how — what did not run is recorded as not run.
+Status: implemented in Studio issue [#15](https://github.com/NeuroBrix/neurobrix-studio/issues/15),
+updated for the engine's 0.6.2 release per its wire-protocol document.
+The engine itself was not changed. The native checks at the end say
+exactly what was verified and how — what did not run is recorded as not
+run.
 
-The engine has **no standalone wire-protocol document**. The specification
-today is its source and its tests, so this record cites the file each fact
-comes from, and Studio's tests mirror the engine fixtures they depend on.
+**The authoritative specification is the engine's
+[`docs/reference/wire-protocol.md`](https://github.com/NeuroBrix/neurobrix/blob/main/docs/reference/wire-protocol.md)**
+(written for a reader with no access to the engine's code, protocol
+version 1). This record states what Studio consumes from it and where it
+enforces each part; the shapes below are cited to that document and to
+the engine sources it names.
 
 ## The wire format
 
-From `serving/protocol.py` (engine repo):
+Framing is unchanged (wire-protocol.md §2):
 
 ```text
 [4-byte big-endian uint32 length][UTF-8 JSON payload]
@@ -26,20 +30,23 @@ From `serving/protocol.py` (engine repo):
 
 ## The envelopes
 
-From `serving/protocol.py` (`make_request` / `make_response`):
+From wire-protocol.md §3 (`make_request` / `make_response`):
 
 ```jsonc
-// request — every call
-{ "method": "status", "params": {} }
+// request — stamped with the protocol this client speaks
+{ "protocol": 1, "method": "status", "params": {} }
 
 // response — success, or the same head with "error"
-{ "protocol": 1, "engine": "0.5.4", "result": { /* … */ } }
-{ "protocol": 1, "engine": "0.5.4", "error": "Unknown method: x" }
+{ "protocol": 1, "engine": "0.6.2", "result": { /* … */ } }
+{ "protocol": 1, "engine": "0.6.2", "error": "Unknown method: x" }
+
+// a work method's answer also carries an "op_id"; Stage 2 calls no work
+// method, and the extra key is simply not one Studio reads
 ```
 
-- `PROTOCOL_VERSION = 1` is stamped on **every** response; Studio refuses a
-  protocol version it does not know instead of guessing
-  (`transport::validate_envelope`).
+- `protocol` (still version **1** in 0.6.x) is stamped on **every**
+  response; Studio refuses a protocol version it does not know instead of
+  guessing (`transport::validate_envelope`).
 - The engine stamp is checked against the tested range
   (`version::SUPPORTED_ENGINE_RANGE`) on **every** envelope, not just the
   first.
@@ -54,9 +61,9 @@ From `serving/protocol.py` (`make_request` / `make_response`):
 
 ## The endpoint record and transports
 
-From `serving/protocol.py` (`Instance.endpoint()`); mirrored in Studio's
-`endpoint::EndpointRecord` with fixtures from the engine's
-`tests/unit/serving/test_each_windows_instance_has_its_own_port.py`:
+Unchanged (wire-protocol.md §1), mirrored in Studio's
+`endpoint::EndpointRecord` with fixtures from the engine's instance
+tests:
 
 ```jsonc
 // Unix and macOS — AF_UNIX socket
@@ -80,80 +87,89 @@ From `serving/protocol.py` (`Instance.endpoint()`); mirrored in Studio's
   instance, not a failure. A port file that names no usable port is
   reported (`ResolveError::UnusablePortFile`), never guessed around.
 
-## The identity record and `status`
+## The identity records
 
-From `serving/engine.py` (`daemon_identity` + `get_status`), read the same
-way by `status` and `neurobrix info --json`
-(`tests/unit/cli/test_the_daemon_names_its_protocol.py` on the engine
-side):
+`neurobrix info --json` (schema **`neurobrix.info/2`**) and the `status`
+method carry the identity with one difference (wire-protocol.md §5, §6):
 
 ```jsonc
-{
-  "engine": "0.5.4",          // identity
-  "protocol": 1,
-  "endpoint": { /* as above */ },
-  "operations": ["generate", "chat", "complete", "template",
-                  "new_chat", "status", "shutdown"],
-  "model": "TinyLlama-1.1B-Chat-v1.0",   // serving state
-  "hardware": "v100-32g",
-  "family": "llm",            // null until the engine resolves one
-  "loaded": true,
-  "mode": "compiled",
-  "warm_serving": true
-  // optional extras (strategy, vram_used_gb, context) are ignored
-}
+// both carry:
+"engine": "0.6.2",
+"protocol": 1,
+"protocol_range": [1, 1],        // inclusive [min, max] of client versions served
+"endpoint": { /* as above */ }
+
+// info --json additionally carries the dispatcher's METHOD names:
+"operations": ["generate", "chat", "complete", "template",
+               "new_chat", "status", "cancel", "shutdown"]
+
+// status instead replaces "operations" with its LIVE operations —
+// records of the work running right now (op_id, method, state, steps),
+// which Stage 2 does not model and so does not parse
 ```
 
 - The handshake is connect → `status` → validate the identity record
-  (protocol, engine inside the tested range, endpoint shape, required
-  operations) **before any other operation**
-  (`client::connect_and_read_status`). Stage 2 requires the `status` and
-  `shutdown` operations.
-- Studio renders what `status` reports — model, hardware, family, loaded —
-  nothing invented.
+  (protocol version, the served range containing Studio's version, the
+  endpoint shape, the engine inside the tested range) **before any other
+  operation** (`client::connect_and_read_status`). The daemon enforces the
+  same range at the first frame and closes the connection on a refusal;
+  Studio checks first and says so before the daemon has to.
+- The method names the handshake requires — `status` and `shutdown` —
+  live on the **info record** in 0.6.x, so that check belongs to the
+  endpoint resolution (`daemon::resolve_endpoint`),
+  once per session.
+- The `status` result's serving fields are rendered as reported — model,
+  hardware, family, loaded — nothing invented. Its optional extras
+  (`strategy`, `vram_used_gb`, `context`) are ignored.
 
 ## What Studio calls
 
 Stage 2 invokes exactly two methods: `status` (the handshake and every
 read) and `shutdown` (the owned stop). The remaining operations —
-`generate`, `chat`, `complete`, `template`, `new_chat` — are Stage 3
-inference work. The frontend reaches none of them directly: it has three
-Tauri commands (`daemon_status`, `start_owned_daemon`, `stop_owned_daemon`
-in `src-tauri/src/lib.rs`) and no method proxy, no CLI arguments, no shell
-execution — the `method` names are Rust's choice alone.
+`generate`, `chat`, `complete`, `template`, `new_chat`, and the new
+`cancel` (answered only once the native work has really stopped) — are
+Stage 3 inference work. The frontend reaches none of them directly: it
+has three Tauri commands (`daemon_status`, `start_owned_daemon`,
+`stop_owned_daemon` in `src-tauri/src/lib.rs`) and no method proxy, no
+CLI arguments, no shell execution — the `method` names are Rust's choice
+alone.
 
 ## The lifecycle contract
 
-From `cli/commands/serve.py` and `serving/server.py`:
+Unchanged in 0.6.x (wire-protocol.md §7 and the engine's
+`cli/commands/serve.py`, `serving/server.py`):
 
 - `neurobrix serve --model <id> [--hardware <hw>] [--timeout N]
   [--foreground]`; `--model` is required. Studio always passes
   `--foreground`, so the spawned child **is** the daemon: no fork, no
   detach; the handle Studio holds is the daemon's PID.
 - The engine **refuses** to start when the instance already has a daemon:
-  `cmd_serve` exits 1 and prints `[Serve] Daemon already running (PID …)`.
-  Studio reports that as a conflict — with the pre-existing daemon's
-  identity when its probe can read one — and never kills or adopts it.
+  `cmd_serve` exits 1 and prints `[Serve] Daemon already running (PID …)`
+  — verified unchanged in 0.6.2. Studio reports that as a conflict — with
+  the pre-existing daemon's identity when its probe can read one — and
+  never kills or adopts it.
 - The PID file is written **before** the model loads; the socket binds
   **after**. Readiness is therefore a validated `status` within a bounded
-  window — never process spawn, never PID-file presence. In
-  `--foreground` the daemon emits no ready signal on Linux (the
-  Windows/macOS ready file is a side effect of the background path, not a
-  foreground contract), so status polling is the uniform readiness
-  check on every platform.
+  window — never process spawn, never PID-file presence. (0.6.x also
+  emits a ready record on the foreground child's stdout — one
+  `NBX-READY {…}` line, or `--ready-fd`/`--ready-file`; Studio keeps
+  status polling as its uniform check, and the drained stdout tail
+  carries the ready or failed record as diagnostics. Waiting on the
+  record instead is a possible later increment, not a requirement.)
 - An early child death surfaces the engine's own stdout/stderr excerpts
   (bounded tails, drained off-thread so a chatty daemon can never block
   on a full pipe).
 - SIGINT/SIGTERM are handled; instance files (socket, pid, and a named
   Windows instance's port file — the log persists by the engine's own
-  design) are cleaned on exit (`_cleanup`). Studio confirms a stop by
-  process exit AND instance-file cleanup; a stop that times out is
-  reported as not stopped, never assumed.
+  design) are cleaned on exit. Studio confirms a stop by process exit
+  AND instance-file cleanup; a stop that times out is reported as not
+  stopped, never assumed.
 - The idle timeout (`--timeout`, engine default 1800) stops an idle
-  daemon; the daemon logs `[Daemon] Idle timeout (Ns) — shutting down`.
-  Studio passes the timeout explicitly so the invocation records it, and
-  classifies that death as expected (with the recorded timeout) while
-  never-zero exits and signals are unexpected.
+  daemon; the daemon logs `[Daemon] Idle timeout (Ns) — shutting down`
+  — verified unchanged in 0.6.2. Studio passes the timeout explicitly so
+  the invocation records it, and classifies that death as expected (with
+  the recorded timeout) while never-zero exits and signals are
+  unexpected.
 - `neurobrix stop` escalates shutdown → SIGTERM → force kill against the
   instance's daemon regardless of who started it. It is **not** Studio's
   stop path; Studio stops only a daemon it owns, through the `shutdown`
@@ -161,9 +177,9 @@ From `cli/commands/serve.py` and `serving/server.py`:
 
 ## The instance-selection decision
 
-The engine keys daemon identity by `NBX_SOCKET_PATH`
-(`serving/protocol.py`, `Instance`): on Unix the value is the socket path
-itself; on Windows the stem derives the `.pid`, `.log` and `.port` files.
+Unchanged. The engine keys daemon identity by `NBX_SOCKET_PATH`
+(wire-protocol.md §1): on Unix the value is the socket path itself; on
+Windows the stem derives the `.pid`, `.log` and `.port` files.
 
 Studio names its own instance:
 
@@ -187,18 +203,20 @@ the scale:
 
 | Budget | Value | Rationale |
 | --- | --- | --- |
-| connect / read / write | 2 s / 5 s / 5 s | the daemon serves one connection at a time; bounded reads keep a busy generation from hanging a read |
-| readiness deadline | 300 s | the engine's own background start waits up to 300 s for its ready signal — Studio's budget matches that scale, not faster hardware than the user has |
+| connect / read / write | 2 s / 5 s / 5 s | bounded reads; control methods no longer wait behind a running generation in 0.6.x, but a hung socket still fails as a timeout |
+| readiness deadline | 300 s | the engine's own background launcher waits up to 300 s for its ready record — Studio's budget matches that scale, not faster hardware than the user has |
 | stop exit / cleanup grace | 10 s / 5 s | the engine's own stop path uses 3–5 s budgets |
 | idle timeout passed to serve | 1800 s | recorded in the invocation and read back from it, never hardcoded at read |
 
-## Known limitation
+## A former limitation, resolved
 
-The daemon serves **one connection at a time** (`listen(1)` and a serial
-accept loop, `serving/server.py`): a status read during another client's
-generation blocks behind it. Studio uses short-lived connections and the
-bounded reads above. Responsive control is Stage 3 engine work; this
-limitation stands until then.
+Stage 2 opened against a daemon that served **one connection at a
+time**, recorded as a known limitation: a status read during another
+client's generation blocked behind it. **0.6.x resolves it** — the daemon
+answers control methods while it generates (per-request threads under an
+operations manager, per its dispatch). Studio's short-lived connections
+and bounded reads remain, but no read waits behind a generation. Cancellation
+of running work is Stage 3, on the new `cancel` method.
 
 ## Where each piece lives in Studio
 
@@ -209,7 +227,7 @@ the boundary):
 | --- | --- |
 | Framing, envelope stamps | `transport.rs` |
 | Instance naming, endpoint record, dial resolution | `endpoint.rs` |
-| The shared `info --json` record | `info.rs` |
+| The shared `info --json` record (schema 2) | `info.rs` |
 | Connect, handshake, `status`, `shutdown` | `client.rs` |
 | Owned child, readiness, confirmed stop, death classification | `lifecycle.rs` |
 | Session ownership, states, command semantics | `daemon.rs` |
@@ -222,10 +240,12 @@ observed on one platform is not claimed for the others.
 
 | Verified | How | Evidence |
 | --- | --- | --- |
+| The consumed contract facts | read from the engine's `docs/reference/wire-protocol.md` (as shipped at 0.6.2) and its sources; the lifecycle string markers re-verified against the 0.6.2 tree | this document |
 | Framing: exact-length reads, the 64 MiB cap before allocation, truncated frames, invalid JSON/UTF-8, bounded read/write timeouts | in-memory duplex unit tests | `transport.rs` |
 | Envelopes: missing stamps, unknown protocol, engine outside the tested range, unexpected result/error variants | unit tests against `make_response`'s shape | `transport.rs` |
-| Identity: valid record, missing operations, endpoint shapes (`unix`, `tcp`, `tcp` + `port_file`), record-vs-envelope disagreement | fixture tests referencing the engine's instance tests | `info.rs`, `endpoint.rs`, `client.rs` |
-| Handshake, `status`, `shutdown`, refusal mapping | tests against fake daemons on **real** sockets (loopback TCP everywhere; Unix sockets where that transport exists) | `client.rs` |
+| Identity: valid record, the served protocol range, endpoint shapes (`unix`, `tcp`, `tcp` + `port_file`), record-vs-envelope disagreement | fixture tests referencing the engine's wire-protocol and instance tests | `info.rs`, `endpoint.rs`, `client.rs` |
+| The info record's method names carry `status` and `shutdown`; a dispatcher without them is refused by name | fixture test against the schema-2 record | `daemon.rs` |
+| Handshake, `status`, `shutdown`, refusal mapping; requests stamped with the protocol | tests against fake daemons on **real** sockets (loopback TCP everywhere; Unix sockets where that transport exists) | `client.rs` |
 | Readiness (success, timeout, refusal, no-port-yet), confirmed stop, stop timeout ≠ stopped, death classification, stale files, start after death, the real spawner with real processes and bounded pipes | scripted-child tests; two unix-gated tests exercise the real spawner | `lifecycle.rs` |
 | Manager states and command semantics: conflict with identity, duplicate rejection, ownership (an external daemon is never stopped), readiness-timeout recovery, expected/unexpected deaths | scripted children + persistent fake daemons on real sockets | `daemon.rs` |
 | Handshake and status against a **real compatible engine** | **Not run yet.** Recorded with engine version, protocol version, OS, architecture and transport when run | issue #15 native verification |
@@ -233,6 +253,6 @@ observed on one platform is not claimed for the others.
 | Windows transport behavior | **Not run.** The `tcp` and port-file record shapes are exercised by fixtures on Linux — fixture evidence, not native Windows evidence | — |
 
 All checks above run with `cargo test --manifest-path
-src-tauri/Cargo.toml --locked` (104 tests at the time of writing), with
+src-tauri/Cargo.toml --locked` (106 tests at the time of writing), with
 `cargo clippy --locked --all-targets -- -D warnings` and
 `cargo fmt --all --check` clean, on Linux x86_64.

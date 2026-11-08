@@ -170,18 +170,20 @@ mod tests {
         })
     }
 
-    /// Verified 0.5.4 record (issue #9, paths redacted); unknown fields
-    /// kept to prove they are ignored. The interpreter key is omitted
-    /// because the guard bans that literal in this module.
+    /// Verified 0.6.2 record (paths redacted); unknown fields kept to prove
+    /// they are ignored. The schema-2 record carries the compute branches
+    /// and the detected devices where schema-1 carried `torch` and
+    /// `cuda_available` — Studio consumes neither. The interpreter key is
+    /// omitted because the guard bans that literal in this module.
     fn info_record(engine_version: &str) -> String {
         format!(
-            r#"{{"schema":"neurobrix.info/1","engine":"{engine_version}","version":"{engine_version}","package":"/src/neurobrix","cache":"/home/user/.neurobrix/cache","store":"/home/user/.neurobrix/store","models":[{{"name":"test-model","size_bytes":384061043}}],"hardware_profiles":["a100-80g","h100-80g"],"torch":null,"cuda_available":false,"gpus":[],"protocol":1,"endpoint":{{"kind":"unix","path":"/home/user/.neurobrix/daemon.sock"}},"operations":["generate","chat","complete","template","new_chat","status","shutdown"]}}"#
+            r#"{{"schema":"neurobrix.info/2","engine":"{engine_version}","version":"{engine_version}","package":"/src/neurobrix","cache":"/home/user/.neurobrix/cache","store":"/home/user/.neurobrix/store","models":[{{"name":"test-model","size_bytes":384061043}}],"hardware_profiles":["a100-80g","h100-80g"],"branches":{{"torch":null,"triton":null}},"gpus":[],"protocol":1,"protocol_range":[1,1],"endpoint":{{"kind":"unix","path":"/home/user/.neurobrix/daemon.sock"}},"operations":["generate","chat","complete","template","new_chat","status","cancel","shutdown"]}}"#
         )
     }
 
     #[test]
     fn absent_when_executable_is_not_found() {
-        let runner = runner_with(ok(&info_record("0.5.4")));
+        let runner = runner_with(ok(&info_record("0.6.2")));
         let result = discover(&FixedLocator(None), &runner);
         assert!(matches!(result, EngineAvailability::Absent));
         // The probe must never run when nothing was found.
@@ -195,7 +197,7 @@ mod tests {
 
     #[test]
     fn executable_found_runs_probe_on_located_path() {
-        let runner = runner_with(ok(&info_record("0.5.4")));
+        let runner = runner_with(ok(&info_record("0.6.2")));
         let result = discover(&FixedLocator(Some(EXECUTABLE.into())), &runner);
         assert!(matches!(result, EngineAvailability::Compatible { .. }));
         let seen = runner.seen.lock().expect("fake runner lock").clone();
@@ -204,14 +206,14 @@ mod tests {
 
     #[test]
     fn compatible_version_passes_the_reported_payload_through() {
-        let result = discover_with(ok(&info_record("0.5.4")));
+        let result = discover_with(ok(&info_record("0.6.2")));
         match result {
             EngineAvailability::Compatible {
                 engine_version,
                 protocol_version,
                 capabilities,
             } => {
-                assert_eq!(engine_version, "0.5.4");
+                assert_eq!(engine_version, "0.6.2");
                 assert_eq!(protocol_version, Some("1".to_owned()));
                 assert_eq!(
                     capabilities,
@@ -222,6 +224,7 @@ mod tests {
                         "template".to_owned(),
                         "new_chat".to_owned(),
                         "status".to_owned(),
+                        "cancel".to_owned(),
                         "shutdown".to_owned(),
                     ])
                 );
@@ -246,9 +249,22 @@ mod tests {
     }
 
     #[test]
+    fn an_engine_answering_the_old_schema_is_refused_not_half_parsed() {
+        // 0.5.x answers `info/1`; the schema this build speaks is 2.
+        let old = info_record("0.6.2").replace("neurobrix.info/2", "neurobrix.info/1");
+        let result = discover_with(ok(&old));
+        match result {
+            EngineAvailability::ContractFailure { reason, .. } => {
+                assert!(reason.contains("neurobrix.info/1"), "reason: {reason}");
+            }
+            other => panic!("expected ContractFailure, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn missing_daemon_block_still_reports_compatible() {
         // Windows named instance, no port file: the daemon block becomes one key.
-        let record = r#"{"schema":"neurobrix.info/1","engine":"0.5.4","cache":"/home/user/.neurobrix/cache","store":"/home/user/.neurobrix/store","daemon":"unavailable (no port file)"}"#;
+        let record = r#"{"schema":"neurobrix.info/2","engine":"0.6.2","cache":"/home/user/.neurobrix/cache","store":"/home/user/.neurobrix/store","daemon":"unavailable (no port file)"}"#;
         let result = discover_with(ok(record));
         match result {
             EngineAvailability::Compatible {
@@ -256,7 +272,7 @@ mod tests {
                 protocol_version,
                 capabilities,
             } => {
-                assert_eq!(engine_version, "0.5.4");
+                assert_eq!(engine_version, "0.6.2");
                 assert_eq!(protocol_version, None);
                 assert_eq!(capabilities, None);
             }
@@ -266,7 +282,7 @@ mod tests {
 
     #[test]
     fn uses_the_fixed_argument_array_with_no_shell_string() {
-        let runner = runner_with(ok(&info_record("0.5.4")));
+        let runner = runner_with(ok(&info_record("0.6.2")));
         discover(&FixedLocator(Some(EXECUTABLE.into())), &runner);
         let seen = runner.seen.lock().expect("fake runner lock").clone();
         assert_eq!(seen.program.as_deref(), Some(Path::new(EXECUTABLE)));
@@ -296,16 +312,16 @@ mod tests {
 
     #[test]
     fn contract_failure_for_missing_required_fields() {
-        let result = discover_with(ok(r#"{"schema":"neurobrix.info/1"}"#));
+        let result = discover_with(ok(r#"{"schema":"neurobrix.info/2"}"#));
         assert!(matches!(result, EngineAvailability::ContractFailure { .. }));
     }
 
     #[test]
     fn contract_failure_for_unsupported_schema() {
-        let result = discover_with(ok(r#"{"schema":"neurobrix.info/2","engine":"0.5.4"}"#));
+        let result = discover_with(ok(r#"{"schema":"neurobrix.info/3","engine":"0.6.2"}"#));
         match result {
             EngineAvailability::ContractFailure { reason, .. } => {
-                assert!(reason.contains("neurobrix.info/2"));
+                assert!(reason.contains("neurobrix.info/3"));
             }
             other => panic!("expected ContractFailure, got {other:?}"),
         }
@@ -314,7 +330,7 @@ mod tests {
     #[test]
     fn contract_failure_for_malformed_version() {
         let result = discover_with(ok(
-            r#"{"schema":"neurobrix.info/1","engine":"not.a.version"}"#,
+            r#"{"schema":"neurobrix.info/2","engine":"not.a.version"}"#,
         ));
         match result {
             EngineAvailability::ContractFailure { reason, .. } => {

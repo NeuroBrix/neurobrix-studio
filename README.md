@@ -19,8 +19,9 @@
 ---
 
 > **Early development — no public release or installer yet.**
-> The repository contains a starter interface and a Tauri shell. Engine integration,
-> model management, and inference are planned in the [roadmap](ROADMAP.md).
+> The repository contains a Tauri shell, engine discovery, and the typed
+> serving-daemon contract. Model management and inference are planned in
+> the [roadmap](ROADMAP.md).
 
 ## What this is
 
@@ -56,8 +57,11 @@ on Studio.
 
 Each Studio release declares the range of engine versions it has been tested against — a
 range and not a pinned version, so that an engine patch release does not require a Studio
-release. Today's range is `>=0.5.4,<0.6`: `0.5.4` is the first engine that can describe
-itself to a program, so it is the oldest one Studio can talk to at all.
+release. Today's range is `>=0.6.0,<0.7`: `0.6.0` is the first engine that speaks the
+`neurobrix.info/2` record, the declared protocol range, and the foreground ready record —
+the wire contract Studio consumes
+([docs/engine-daemon-protocol.md](docs/engine-daemon-protocol.md)); older engines answer
+a schema this build refuses by design.
 
 Studio and the engine version independently. Studio starting at `0.0.1` while the engine is
 at `0.5.4` is normal and expected; the two numbers are not meant to converge.

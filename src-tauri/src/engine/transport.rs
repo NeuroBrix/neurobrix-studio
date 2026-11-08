@@ -417,18 +417,18 @@ mod tests {
     fn a_result_envelope_passes_its_stamps_and_body() {
         let envelope = validate_envelope(json!({
             "protocol": 1,
-            "engine": "0.5.4",
+            "engine": "0.6.2",
             "result": {"status": "ok"}
         }))
         .expect("a valid envelope validates");
-        assert_eq!(envelope.engine_version, "0.5.4");
+        assert_eq!(envelope.engine_version, "0.6.2");
         assert_eq!(envelope.body, EnvelopeBody::Result(json!({"status": "ok"})));
     }
 
     #[test]
     fn a_null_result_is_a_result_not_a_missing_one() {
         // make_response() with no result emits `"result": null` — present.
-        let envelope = validate_envelope(json!({"protocol": 1, "engine": "0.5.4", "result": null}))
+        let envelope = validate_envelope(json!({"protocol": 1, "engine": "0.6.2", "result": null}))
             .expect("a null result is a valid envelope");
         assert_eq!(envelope.body, EnvelopeBody::Result(Value::Null));
     }
@@ -440,7 +440,7 @@ mod tests {
         // variants the wire does not have.
         let envelope = validate_envelope(json!({
             "protocol": 1,
-            "engine": "0.5.4",
+            "engine": "0.6.2",
             "error": "Unknown method: frobnicate"
         }))
         .expect("a valid envelope validates");
@@ -454,7 +454,7 @@ mod tests {
     fn missing_protocol_or_engine_stamps_are_refused() {
         for payload in [
             json!({}),
-            json!({"engine": "0.5.4", "result": {}}),
+            json!({"engine": "0.6.2", "result": {}}),
             json!({"protocol": 1, "result": {}}),
             json!("a string is not an envelope"),
         ] {
@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn an_unknown_protocol_version_is_refused_with_the_reported_number() {
-        let error = validate_envelope(json!({"protocol": 2, "engine": "0.5.4", "result": {}}))
+        let error = validate_envelope(json!({"protocol": 2, "engine": "0.6.2", "result": {}}))
             .expect_err("a protocol Studio does not know is refused, not guessed at");
         assert_eq!(error, EnvelopeError::UnknownProtocol(2));
     }
@@ -499,9 +499,9 @@ mod tests {
     #[test]
     fn both_or_neither_result_and_error_is_an_unexpected_variant() {
         for payload in [
-            json!({"protocol": 1, "engine": "0.5.4", "result": {}, "error": "both"}),
-            json!({"protocol": 1, "engine": "0.5.4"}),
-            json!({"protocol": 1, "engine": "0.5.4", "error": 42}),
+            json!({"protocol": 1, "engine": "0.6.2", "result": {}, "error": "both"}),
+            json!({"protocol": 1, "engine": "0.6.2"}),
+            json!({"protocol": 1, "engine": "0.6.2", "error": 42}),
         ] {
             let outcome = validate_envelope(payload.clone());
             assert_eq!(

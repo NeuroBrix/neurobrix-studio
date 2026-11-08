@@ -3,8 +3,9 @@ import * as v from "valibot";
 
 /**
  * The serving fields a live daemon reports (engine `get_status` +
- * `daemon_identity`), exactly as Rust serializes them — optional fields are
- * absent when the engine had nothing to say, never invented.
+ * `daemon_identity`) — exactly as Rust serializes them. In 0.6.x the
+ * daemon's `operations` key in the status result is its LIVE operations,
+ * which Studio does not model; it is simply absent from this contract.
  */
 const serving = {
   model: v.string(),
@@ -15,7 +16,6 @@ const serving = {
   warm_serving: v.boolean(),
   engine_version: v.string(),
   protocol_version: v.number(),
-  operations: v.array(v.string()),
 } as const;
 
 /** What answers on Studio's engine instance — one explicit state per value. */

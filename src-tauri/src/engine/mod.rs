@@ -44,7 +44,7 @@ pub enum EngineAvailability {
 }
 
 /// Fixed probe, argument array only — never a shell string. Shipped
-/// contract: `neurobrix info --json` (schema `neurobrix.info/1`). The
+/// contract: `neurobrix info --json` (schema `neurobrix.info/2`). The
 /// daemon work runs the SAME probe with the Studio-named instance in the
 /// environment, to read the endpoint it must dial.
 pub const DISCOVERY_ARGS: &[&str] = &["info", "--json"];

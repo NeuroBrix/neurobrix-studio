@@ -24,16 +24,16 @@ pub(crate) fn test_timeouts() -> transport::TransportTimeouts {
 }
 
 /// The status body the engine's `get_status` + `daemon_identity` produce
-/// (verified 0.5.4 record; paths redacted).
+/// (the verified 0.6.2 record; paths redacted). The `operations` key the
+/// daemon sends is its LIVE operations — a list of running work records
+/// Studio does not model — so it stays out of this fixture's identity
+/// fields the same way it stays out of `StatusRecord`.
 pub(crate) fn status_body() -> Value {
     json!({
-        "engine": "0.5.4",
+        "engine": "0.6.2",
         "protocol": 1,
+        "protocol_range": [1, 1],
         "endpoint": {"kind": "tcp", "address": "127.0.0.1", "port": 19384},
-        "operations": [
-            "generate", "chat", "complete", "template",
-            "new_chat", "status", "shutdown"
-        ],
         "model": "TinyLlama-1.1B-Chat-v1.0",
         "hardware": "v100-32g",
         "family": "llm",
@@ -46,7 +46,7 @@ pub(crate) fn status_body() -> Value {
 /// Wrap a result in the envelope every engine response carries
 /// (`make_response`): the stamps plus exactly one of result/error.
 pub(crate) fn envelope_with(result: Value) -> Value {
-    json!({"protocol": 1, "engine": "0.5.4", "result": result})
+    json!({"protocol": 1, "engine": "0.6.2", "result": result})
 }
 
 /// A one-connection fake daemon on a real loopback socket: accepts, reads
