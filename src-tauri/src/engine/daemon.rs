@@ -928,6 +928,7 @@ mod tests {
     use serde_json::json;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::Instant;
 
     const EXECUTABLE: &str = "/usr/local/bin/neurobrix";
     const MODEL: &str = "TinyLlama-1.1B-Chat-v1.0";
@@ -1660,5 +1661,197 @@ mod tests {
     fn always_alive_spawner() -> Arc<dyn DaemonSpawner> {
         let (spawner, _) = ScriptedSpawner::always_alive();
         spawner
+    }
+
+    // ------------------------------------------------------------------
+    // Native verification against a real engine — issue #15's recorded
+    // evidence layer. Ignored in every normal run: these need the
+    // engine's CLI on PATH and a model its cache can plan. Run:
+    //
+    //     PATH=<engine venv>/bin:$PATH cargo test --manifest-path \
+    //       src-tauri/Cargo.toml -- --ignored --nocapture
+    //
+    // Fake-transport coverage lives with the fakes above; this section
+    // is real-engine evidence only, and prints exactly what the issue
+    // asks to record: engine version, protocol version, OS,
+    // architecture, transport.
+
+    /// The model the native run serves; any model the engine can plan.
+    fn native_model() -> String {
+        std::env::var("NBX_NATIVE_MODEL").unwrap_or_else(|_| "TinyLlama-1.1B-Chat-v1.0".to_owned())
+    }
+
+    /// The hardware profile a TERMINAL actor chooses. A terminal user
+    /// may pass one; Studio's owned start passes none and takes the
+    /// engine's auto-detection — so the external test exercises a real
+    /// ready daemon while the owned test exercises whichever branch the
+    /// machine's hardware allows.
+    fn native_hardware() -> String {
+        std::env::var("NBX_NATIVE_HARDWARE").unwrap_or_else(|_| "cpu-only-x86".to_owned())
+    }
+
+    #[tokio::test]
+    #[ignore = "real-engine evidence: needs the engine CLI on PATH and a model it can plan"]
+    async fn native_a_terminal_daemon_is_external_reported_and_never_stopped() {
+        let model = native_model();
+        let hardware = native_hardware();
+        let instance = temp_dir();
+        let socket = instance.join("engine").join("daemon.sock");
+        std::fs::create_dir_all(socket.parent().expect("a parent")).expect("instance dir");
+
+        // The terminal actor: the public CLI with the instance env — the
+        // command a user runs, with its own hardware choice.
+        let spawner = lifecycle::SystemDaemonSpawner;
+        let mut terminal = spawner
+            .spawn(
+                Path::new("neurobrix"),
+                &[
+                    "serve".to_owned(),
+                    "--model".to_owned(),
+                    model.clone(),
+                    "--hardware".to_owned(),
+                    hardware,
+                    "--foreground".to_owned(),
+                ],
+                &[(
+                    "NBX_SOCKET_PATH".to_owned(),
+                    socket.to_string_lossy().into_owned(),
+                )],
+            )
+            .expect("the engine CLI is on PATH for the native run");
+
+        let manager = DaemonManager::new(&instance);
+        // The daemon loads in its own time; the read reports it external,
+        // through the handshake, with its identity.
+        let deadline = Instant::now() + Duration::from_secs(600);
+        let external = loop {
+            if let Some(exit) = terminal.try_wait() {
+                panic!("the terminal daemon exited before serving: {exit:?}");
+            }
+            match manager.read_status().await {
+                status @ DaemonStatus::ExternalDaemon { .. } => break status,
+                other => {
+                    assert!(
+                        Instant::now() < deadline,
+                        "the terminal daemon never answered; last status: {other:?}"
+                    );
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+            }
+        };
+        let DaemonStatus::ExternalDaemon {
+            model: serving,
+            engine_version,
+            protocol_version,
+            ..
+        } = &external
+        else {
+            unreachable!("the match above binds an external daemon")
+        };
+        println!(
+            "native evidence [external daemon]: engine {engine_version}, protocol \
+             {protocol_version}, {} {}, unix socket — reported external with its identity",
+            std::env::consts::OS,
+            std::env::consts::ARCH,
+        );
+        assert_eq!(
+            *serving, model,
+            "the external daemon reports the model it serves"
+        );
+
+        // Studio never stops a daemon it does not own.
+        assert!(matches!(
+            manager.stop().await,
+            Err(MutationFailure::NoOwnedDaemon { .. })
+        ));
+        // It is still running and still reported.
+        assert!(matches!(
+            manager.read_status().await,
+            DaemonStatus::ExternalDaemon { .. }
+        ));
+
+        // Cleanup: the terminal actor stops its own daemon, then it exits.
+        let _ = spawner.spawn(
+            Path::new("neurobrix"),
+            &["stop".to_owned()],
+            &[(
+                "NBX_SOCKET_PATH".to_owned(),
+                socket.to_string_lossy().into_owned(),
+            )],
+        );
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            if terminal.try_wait().is_some() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the terminal daemon did not stop"
+            );
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "real-engine evidence: needs the engine CLI on PATH; exercises the load-failure branch on machines whose hardware the engine cannot plan"]
+    async fn native_an_owned_start_is_ready_or_reports_the_engines_diagnostics() {
+        let model = native_model();
+        let instance = temp_dir();
+        let manager = DaemonManager::new(&instance);
+
+        // The owned start passes no --hardware: the engine is the
+        // authority, so this is the production path. Either outcome is
+        // the contract: readiness when the machine can plan the model,
+        // or the engine's own refusal surfaced with its diagnostics.
+        match manager.start(model.clone()).await {
+            Ok(DaemonStatus::Ready {
+                engine_version,
+                protocol_version,
+                model: serving,
+                ..
+            }) => {
+                println!(
+                    "native evidence [owned start, ready branch]: engine \
+                     {engine_version}, protocol {protocol_version}, {} {}, unix socket",
+                    std::env::consts::OS,
+                    std::env::consts::ARCH,
+                );
+                assert_eq!(serving, model);
+                // The full success path: a status read, a confirmed stop,
+                // and instance files cleaned.
+                match manager.read_status().await {
+                    DaemonStatus::Ready { model: m, .. } => assert_eq!(m, model),
+                    other => panic!("the status read lost the daemon: {other:?}"),
+                }
+                match manager.stop().await {
+                    Ok(DaemonStatus::Stopped { stale_files: false }) => {}
+                    other => panic!("the confirmed stop did not report stopped: {other:?}"),
+                }
+                for name in ["daemon.sock", "daemon.pid", "daemon.port"] {
+                    assert!(
+                        !instance.join("engine").join(name).exists(),
+                        "the {name} file remains after a confirmed stop"
+                    );
+                }
+                println!("native evidence [owned stop]: confirmed exit and instance-file cleanup");
+            }
+            Err(MutationFailure::LoadFailed {
+                exit_code,
+                diagnostics,
+                ..
+            }) => {
+                // The engine's own refusal — surfaced, not swallowed.
+                let exit = exit_code.expect("the child's exit code is reported");
+                let diagnostics = diagnostics.expect("the engine's diagnostics are surfaced");
+                println!(
+                    "native evidence [owned start, load-failure branch]: exit {exit}, \
+                     the engine's own diagnostics: {diagnostics}"
+                );
+                assert!(!diagnostics.is_empty());
+            }
+            other => {
+                panic!("an owned start is ready or reports the engine's diagnostics, got {other:?}")
+            }
+        }
     }
 }
