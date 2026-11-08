@@ -48,8 +48,11 @@ pub enum EngineAvailability {
 /// daemon work runs the SAME probe with the Studio-named instance in the
 /// environment, to read the endpoint it must dial.
 pub const DISCOVERY_ARGS: &[&str] = &["info", "--json"];
-/// Bounded so a wedged engine cannot hang the await; generous because
-/// `info --json` imports the compute stack, slow when installed.
+/// Bounded so a wedged engine cannot hang the await. Since 0.6.x the
+/// probe imports no framework at all — it reads the engine's own
+/// hardware detection and the package metadata, so it answers in the
+/// time of the OS probes; the budget covers a cold interpreter start on
+/// a slow machine.
 pub const DISCOVERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
 /// Diagnostics excerpts are bounded: the last thing the engine said,
